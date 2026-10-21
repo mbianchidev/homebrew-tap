@@ -15,7 +15,8 @@ def run!(*command)
 end
 
 def capture!(*command)
-  output, status = Open3.capture2e(*command)
+  output, errors, status = Open3.capture3(*command)
+  warn errors unless errors.empty?
   abort "Command failed: #{command.join(" ")}\n#{output}" unless status.success?
   output.strip
 end
