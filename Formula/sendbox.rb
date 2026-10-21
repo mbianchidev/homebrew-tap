@@ -2,9 +2,9 @@ class Sendbox < Formula
   desc "Run coding agents in policy-controlled Linux virtual machines"
   homepage "https://github.com/mbianchidev/sendbox"
   # The updater needs one version before the interpolated, metadata-safe default URL.
-  version "0.2.2"
+  version "0.2.3"
   url "https://github.com/mbianchidev/sendbox/releases/download/v#{version}/sendbox-#{version}-macos-arm64.tar.gz"
-  sha256 "0acf0d14db16dd9b7124f23f3f589c189b3ec1807d7d3cf9d7dcd7c44a1c8c5c"
+  sha256 "ab9508dffa9f3299621248d6cff8efb8fd84b44556f630b6e343329ab1eafb3e"
   license "Apache-2.0"
 
   on_macos do
@@ -22,12 +22,12 @@ class Sendbox < Formula
 
     on_intel do
       url "https://github.com/mbianchidev/sendbox/releases/download/v#{version}/sendbox-#{version}-linux-x86_64.tar.gz"
-      sha256 "6be290ce83adb14d922991626acf5a838239f98601eedf0ac85c77e6f8cf7046"
+      sha256 "bcf6da778500da0e072cae3618326034da51eb4497f75a21c93727c5166c3366"
     end
 
     on_arm do
       url "https://github.com/mbianchidev/sendbox/releases/download/v#{version}/sendbox-#{version}-linux-aarch64.tar.gz"
-      sha256 "89081de540ccfbf90d2b38c1a122b6b3796881fc083715517507e830fca201d2"
+      sha256 "0cda1877413af98d00422c3bd5fc4bd5beea7c2080c2b6fbdcf7884961f5d8a3"
     end
   end
 

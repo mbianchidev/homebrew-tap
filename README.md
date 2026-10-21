@@ -11,18 +11,16 @@ brew search mbianchidev/tap/
 
 ## Sendbox
 
-> **Activation blocked: wait for an approved patched stable release newer than
-> v0.2.2.** Do not merge this draft or distribute its v0.2.2 package. The current
-> verified artifacts are retained only for isolated lifecycle testing. Update the
-> formula from the patched release's real, verified assets and rerun CI before
-> human merge.
+> The formula targets verified stable **v0.2.3**, including the required TLS
+> dependency fixes. The bootstrap package becomes available after human review
+> and merge; no merge or runtime activation is automatic.
 
 [Sendbox](https://github.com/mbianchidev/sendbox) is a Rust CLI for running coding
 agents in policy-controlled Linux VMs. The formula installs verified published
 host binaries, configuration examples, setup helper, and the matching signed
 guest payload. No Rust compiler, frontend build, VM, agent, or service is started.
 
-After that activation gate is satisfied:
+After the tap bootstrap PR is merged:
 
 ```bash
 brew install mbianchidev/tap/sendbox
@@ -78,8 +76,7 @@ The formula installs checksummed, published v0.0.3 binaries with the React/Vite
 GUI already embedded in `sqnsl`. Go and Node.js are not required at installation
 or runtime, and no frontend or native source build is performed by the tap.
 The formula and its GUI are checked on Intel/ARM Macs and Linux x86_64/aarch64.
-Installation never starts the daemon or opens a browser. The commands become
-available from the default tap only after human merge of this draft.
+Installation never starts the daemon or opens a browser.
 
 To run the daemon as a user service instead of in the foreground:
 
@@ -138,21 +135,20 @@ including closed ones, are not duplicated. Humans review and merge; automation
 never pushes to `main` or merges. Subsequent automation-branch pushes are
 validated by push CI rather than duplicate PR runs.
 
-**Sendbox activation requires a patched stable release newer than v0.2.2**, verified
-formula updates, passing lifecycle CI, and human merge of both initial PRs.
-Only then, in this tap's Settings > Actions > General > Workflow permissions,
-an administrator must enable **Allow GitHub
-Actions to create and approve pull requests**. It is currently disabled.
-Automation reports an actionable failure and leaves the validated update branch
-available for a manually opened draft if that permission is missing. Do not
-enable auto-merge or widen the token's repository permissions. The initial PR
-must be merged by a human before the new workflow is active.
-
-The initial verified v0.2.2 binaries predate the upstream TLS dependency fixes for
+**Sendbox v0.2.3 includes the upstream TLS dependency fixes for**
 [RUSTSEC-2026-0382](https://rustsec.org/advisories/RUSTSEC-2026-0382.html) and
 [RUSTSEC-2026-0383](https://rustsec.org/advisories/RUSTSEC-2026-0383.html).
-Plan production activation around a human-approved patched stable release;
-fixing the source lockfile cannot change already published binaries.
+Its published archives and tag-bound provenance have been verified. Versions at
+or below v0.2.2 remain excluded from automated activation. The source update
+workflow is merged, but passing lifecycle CI and human merge of the tap bootstrap
+PR are still required before this package and tap-side automation become active.
+
+For future automated draft PRs, keep **Allow GitHub Actions to create and approve
+pull requests** enabled in this tap's Settings > Actions > General > Workflow
+permissions. It is currently enabled. Automation reports an actionable failure
+and leaves the validated update branch available for a manually opened draft if
+that permission is missing. Do not enable auto-merge or widen the token's
+repository permissions.
 
 Other projects keep their own release tooling and dedicated deploy keys. The
 existing sql-not-so-lite key and formula are independent of Sendbox.
