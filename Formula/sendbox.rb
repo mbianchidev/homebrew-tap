@@ -8,8 +8,10 @@ class Sendbox < Formula
     depends_on arch: :arm64
     depends_on macos: :sequoia
 
-    url "https://github.com/mbianchidev/sendbox/releases/download/v#{version}/sendbox-#{version}-macos-arm64.tar.gz"
-    sha256 "0acf0d14db16dd9b7124f23f3f589c189b3ec1807d7d3cf9d7dcd7c44a1c8c5c"
+    on_arm do
+      url "https://github.com/mbianchidev/sendbox/releases/download/v#{version}/sendbox-#{version}-macos-arm64.tar.gz"
+      sha256 "0acf0d14db16dd9b7124f23f3f589c189b3ec1807d7d3cf9d7dcd7c44a1c8c5c"
+    end
   end
 
   on_linux do
@@ -40,14 +42,14 @@ class Sendbox < Formula
     if OS.linux?
       loader = Hardware::CPU.arm? ? "ld-linux-aarch64.so.1" : "ld-linux-x86-64.so.2"
       libraries = [
-        Formula["glibc"].opt_lib,
-        Formula["gcc"].opt_lib/"gcc/current",
-        Formula["elfutils"].opt_lib,
-        Formula["libseccomp"].opt_lib,
-        Formula["zlib"].opt_lib,
+        formula_opt_lib("glibc"),
+        formula_opt_lib("gcc")/"gcc/current",
+        formula_opt_lib("elfutils"),
+        formula_opt_lib("libseccomp"),
+        formula_opt_lib("zlib"),
       ]
-      system Formula["patchelf"].opt_bin/"patchelf",
-             "--set-interpreter", Formula["glibc"].opt_lib/loader,
+      system formula_opt_bin("patchelf")/"patchelf",
+             "--set-interpreter", formula_opt_lib("glibc")/loader,
              "--set-rpath", libraries.join(":"),
              libexec/"sendbox"
     end
