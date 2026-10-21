@@ -69,6 +69,15 @@ class FormulaUpdateTests(unittest.TestCase):
                     self.formula, updated, f"automation/sendbox-v{version}", ["Formula/sendbox.rb"]
                 )
 
+    def test_rejects_known_affected_stable_activation(self):
+        base = CI.with_release(self.formula, "0.1.0", self.digests)
+        for version in ("0.2.1", "0.2.2"):
+            head = CI.with_release(self.formula, version, self.digests)
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, "patched stable"):
+                CI.validate_update(
+                    base, head, f"automation/sendbox-v{version}", ["Formula/sendbox.rb"]
+                )
+
     def test_snapshot_detects_modified_and_removed_mock_data(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

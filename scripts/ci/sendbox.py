@@ -72,6 +72,8 @@ def validate_update(base, head, branch, changed_paths):
         raise ValueError("Only automation/sendbox-vX.Y.Z branches may create package PRs.")
     version = branch[len(prefix):]
     stable_version(version)
+    if stable_version(version) <= (0, 2, 2):
+        raise ValueError("Activation requires an approved patched stable release newer than v0.2.2.")
     if changed_paths != ["Formula/sendbox.rb"]:
         raise ValueError("An automated Sendbox update must change only Formula/sendbox.rb.")
     if formula_fields(head)[0] != version:

@@ -72,7 +72,12 @@ jobs:
           test "$(git -C "$(brew --repository mbianchidev/tap)" rev-parse HEAD)" = "$GITHUB_SHA"
           shopt -s nullglob globstar
           for file in Formula/**/*.rb Casks/**/*.rb; do
-            brew style "$file"
+            if [[ "$file" == Formula/sendbox.rb ]]; then
+              # The updater's version must precede the interpolated default URL.
+              brew style --except-cops=FormulaAuditStrict,FormulaAudit/ComponentsOrder "$file"
+            else
+              brew style "$file"
+            fi
           done
           brew readall --os=all --arch=all --aliases mbianchidev/tap
 

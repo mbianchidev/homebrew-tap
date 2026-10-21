@@ -11,10 +11,18 @@ brew search mbianchidev/tap/
 
 ## Sendbox
 
+> **Activation blocked: wait for an approved patched stable release newer than
+> v0.2.2.** Do not merge this draft or distribute its v0.2.2 package. The current
+> verified artifacts are retained only for isolated lifecycle testing. Update the
+> formula from the patched release's real, verified assets and rerun CI before
+> human merge.
+
 [Sendbox](https://github.com/mbianchidev/sendbox) is a Rust CLI for running coding
 agents in policy-controlled Linux VMs. The formula installs verified published
 host binaries, configuration examples, setup helper, and the matching signed
 guest payload. No Rust compiler, frontend build, VM, agent, or service is started.
+
+After that activation gate is satisfied:
 
 ```bash
 brew install mbianchidev/tap/sendbox
@@ -103,6 +111,10 @@ Draft PRs intentionally run package CI. Obsolete runs are canceled; package
 downloads and Homebrew's locked style dependencies are cached by OS/architecture.
 Published binaries are reused without rebuilding Sendbox. There is no historical
 tap CI baseline yet, so runtime savings are not claimed.
+Sendbox's updater requires an explicit version before its interpolated default
+URL so metadata remains loadable on unsupported Intel Macs. Only the stanza
+ordering style rule is excepted for that formula; all other style checks and
+cross-platform definition validation remain enabled.
 
 Sendbox stable-release automation verifies published artifacts in its source
 repository, updates only the formula's version and three checksums, and uses its
@@ -114,8 +126,10 @@ including closed ones, are not duplicated. Humans review and merge; automation
 never pushes to `main` or merges. Subsequent automation-branch pushes are
 validated by push CI rather than duplicate PR runs.
 
-**Activation after the initial PRs merge:** in this tap's Settings > Actions >
-General > Workflow permissions, an administrator must enable **Allow GitHub
+**Activation requires a patched stable release newer than v0.2.2**, verified
+formula updates, passing lifecycle CI, and human merge of both initial PRs.
+Only then, in this tap's Settings > Actions > General > Workflow permissions,
+an administrator must enable **Allow GitHub
 Actions to create and approve pull requests**. It is currently disabled.
 Automation reports an actionable failure and leaves the validated update branch
 available for a manually opened draft if that permission is missing. Do not

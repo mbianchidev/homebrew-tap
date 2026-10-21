@@ -2,11 +2,9 @@ class Sendbox < Formula
   desc "Run coding agents in policy-controlled Linux virtual machines"
   homepage "https://github.com/mbianchidev/sendbox"
   # The updater needs one version before the interpolated, metadata-safe default URL.
-  # rubocop:disable FormulaAudit/ComponentsOrder
   version "0.2.2"
   url "https://github.com/mbianchidev/sendbox/releases/download/v#{version}/sendbox-#{version}-macos-arm64.tar.gz"
   sha256 "0acf0d14db16dd9b7124f23f3f589c189b3ec1807d7d3cf9d7dcd7c44a1c8c5c"
-  # rubocop:enable FormulaAudit/ComponentsOrder
   license "Apache-2.0"
 
   on_macos do
