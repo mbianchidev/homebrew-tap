@@ -6,6 +6,7 @@ before other packages can be installed or tested.
 
 ```bash
 brew tap mbianchidev/tap
+brew trust mbianchidev/tap
 brew search mbianchidev/tap/
 ```
 
