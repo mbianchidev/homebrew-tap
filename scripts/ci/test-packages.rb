@@ -4,8 +4,9 @@ require "formula"
 require "cask/cask_loader"
 require "cask/installer"
 
-abort "Package lifecycle checks require a disposable GitHub-hosted runner." unless
-  ENV["GITHUB_ACTIONS"] == "true" && ENV["TAP_CI_RUNNER_ENVIRONMENT"] == "github-hosted"
+hosted_runner = ENV["TAP_CI_RUNNER_ENVIRONMENT"]
+abort "Package lifecycle checks require a GitHub-hosted runner; received #{hosted_runner.inspect}." unless
+  hosted_runner == "github-hosted"
 
 def run!(*command)
   abort "Command failed: #{command.join(" ")}" unless system(*command)
