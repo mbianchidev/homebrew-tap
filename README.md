@@ -113,6 +113,8 @@ release checksums/provenance, real previous-stable-to-current `brew upgrade`,
 CLI startup/version/configuration/completions, Linux linkage, unchanged signed
 guest bytes, and preservation of mocked user/project data. No VM or agent is
 started, and none of these lifecycle scripts may run on the maintainer's laptop.
+Sendbox init/policy fixture writes run outside Homebrew's restrictive test
+sandbox; its `brew test` uses read-only CLI commands.
 sql-not-so-lite additionally builds and serves its embedded GUI on localhost,
 creates a mock SQLite database, stops the temporary daemon, and verifies package
 removal preserves the configuration and database bytes. Its scan root and home
