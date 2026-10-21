@@ -74,11 +74,9 @@ sqnsl version
 sqnsl start
 ```
 
-The existing v0.0.2 release has no host binaries, so this bootstrap formula builds
-its real, checksummed published source. It builds the locked React/Vite frontend
-before compiling Go, embedding the GUI in `sqnsl`. Go and Node.js are build tools,
-not runtime dependencies. Intel Macs use verified official build-tool archives
-because current Homebrew Go/Node bottles do not cover that architecture.
+The formula installs checksummed, published v0.0.3 binaries with the React/Vite
+GUI already embedded in `sqnsl`. Go and Node.js are not required at installation
+or runtime, and no frontend or native source build is performed by the tap.
 The formula and its GUI are checked on Intel/ARM Macs and Linux x86_64/aarch64.
 Installation never starts the daemon or opens a browser. The commands become
 available from the default tap only after human merge of this draft.
@@ -115,19 +113,15 @@ guest bytes, and preservation of mocked user/project data. No VM or agent is
 started, and none of these lifecycle scripts may run on the maintainer's laptop.
 Sendbox init/policy fixture writes run outside Homebrew's restrictive test
 sandbox; its `brew test` uses read-only CLI commands.
-sql-not-so-lite additionally builds and serves its embedded GUI on localhost,
+sql-not-so-lite additionally verifies and serves its embedded GUI on localhost,
 creates a mock SQLite database, stops the temporary daemon, and verifies package
 removal preserves the configuration and database bytes. Its scan root and home
 are temporary fixtures, never the runner's real home or the maintainer's data.
 
 Draft PRs intentionally run package CI. Obsolete runs are canceled; package
 downloads and Homebrew's locked style dependencies are cached by OS/architecture.
-SQL frontend npm and Go-module download stores are also cached, bound to the
-checksummed source recipe; installed `node_modules` and credentials are not cached.
-Builds use two workers where available. The SQL bootstrap corrects its tagged
-source's stale `0.1.0` version constant to the actual release version and rejects
-npm dependency audit findings before building the GUI.
-Published binaries are reused without rebuilding Sendbox. There is no historical
+Builds use two workers where available. Published binaries are reused without
+rebuilding Sendbox or sql-not-so-lite. Credentials are not cached. There is no historical
 tap CI baseline yet, so runtime savings are not claimed.
 Sendbox's updater requires an explicit version before its interpolated default
 URL so metadata remains loadable on unsupported Intel Macs. Only the stanza

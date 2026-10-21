@@ -133,10 +133,6 @@ jobs:
           path: |
             ~/Library/Caches/Homebrew/downloads
             ~/.cache/Homebrew/downloads
-            ~/Library/Caches/Homebrew/sql-not-so-lite-go-mod
-            ~/Library/Caches/Homebrew/sql-not-so-lite-npm/_cacache
-            ~/.cache/Homebrew/sql-not-so-lite-go-mod
-            ~/.cache/Homebrew/sql-not-so-lite-npm/_cacache
           key: homebrew-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Formula/**/*.rb', 'Casks/**/*.rb') }}
           restore-keys: homebrew-downloads-${{ runner.os }}-${{ runner.arch }}-
 

@@ -139,7 +139,7 @@ def exercise_sql!(qualified)
     abort "The SQL executable is still linked after uninstall." if File.exist?(binary) || File.symlink?(binary)
     abort "SQL uninstall changed retained user configuration or databases." unless
       retained.all? { |file, digest| File.file?(file) && Digest::SHA256.file(file).hexdigest == digest }
-    summary("Passed #{qualified}: source/embedded-GUI build, version/config test, HTTP startup/assets, " \
+    summary("Passed #{qualified}: published binary/embedded-GUI install, version/config test, HTTP startup/assets, " \
             "mock SQLite data creation, graceful shutdown, uninstall and data preservation; no browser launched.")
   end
 end
