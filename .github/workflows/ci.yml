@@ -124,6 +124,8 @@ jobs:
           restore-keys: homebrew-downloads-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install, exercise and remove compatible packages
+        env:
+          TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: brew ruby scripts/ci/test-packages.rb
 
   create-sendbox-update-pr:
@@ -145,5 +147,7 @@ jobs:
           persist-credentials: false
 
       - name: Guard stable branch and open one draft for human review
+        env:
+          TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: |
           python3 scripts/ci/sendbox.py open-pr
