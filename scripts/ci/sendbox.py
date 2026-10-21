@@ -351,7 +351,7 @@ def open_pr():
 
 def main():
     hosted_runner = os.environ.get("TAP_CI_RUNNER_ENVIRONMENT")
-    if hosted_runner != "github-hosted":
+    if os.environ.get("GITHUB_ACTIONS") != "true" or hosted_runner != "github-hosted":
         raise ValueError(f"These operations require a GitHub-hosted runner; received {hosted_runner!r}.")
     if sys.argv[1:] == ["open-pr"]:
         open_pr()

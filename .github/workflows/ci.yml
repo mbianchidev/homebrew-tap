@@ -126,7 +126,7 @@ jobs:
       - name: Install, exercise and remove compatible packages
         env:
           TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
-        run: brew ruby scripts/ci/test-packages.rb
+        run: ruby scripts/ci/test-packages.rb
 
   create-sendbox-update-pr:
     name: Prepare stable Sendbox draft PR
