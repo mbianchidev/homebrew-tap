@@ -1,34 +1,166 @@
-name: Formula
+name: Packages
 
 on:
   push:
-    branches: [main]
-    paths: ["Formula/**"]
+    branches: [main, "automation/sendbox-v*"]
+    paths: ["Formula/**", "Casks/**", "scripts/ci/**", "tests/**", ".github/workflows/**"]
   pull_request:
-    paths: ["Formula/**"]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ["Formula/**", "Casks/**", "scripts/ci/**", "tests/**", ".github/workflows/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: packages-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
+  attestations: read
+
+env:
+  HOMEBREW_NO_ANALYTICS: "1"
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_AUTOREMOVE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+  HOMEBREW_MAKE_JOBS: "2"
+  GH_TOKEN: ${{ github.token }}
+  PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
+  validate:
+    if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'automation/sendbox-v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      packages: ${{ steps.discover.outputs.packages }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Discover packages and check syntax
+        id: discover
+        shell: bash
+        run: |
+          shopt -s nullglob globstar
+          files=(Formula/**/*.rb Casks/**/*.rb)
+          packages=false
+          for file in "${files[@]}"; do
+            ruby -c "$file"
+            packages=true
+          done
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+          ruby -c scripts/ci/test-packages.rb
+          python3 -m unittest discover -s tests -p 'test_*.py'
+
+      - name: Set up Homebrew against the event revision
+        if: steps.discover.outputs.packages == 'true'
+        id: homebrew
+        uses: Homebrew/actions/setup-homebrew@0fdc2c96a16d9f945f7e1577784302fd27a549a9
+        with:
+          stable: true
+
+      - name: Cache Homebrew style dependencies
+        if: steps.discover.outputs.packages == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.homebrew.outputs.gems-path }}
+          key: homebrew-gems-${{ runner.os }}-${{ runner.arch }}-${{ steps.homebrew.outputs.gems-hash }}
+
+      - name: Validate all discovered package definitions
+        if: steps.discover.outputs.packages == 'true'
+        shell: bash
+        run: |
+          test "$(git -C "$(brew --repository mbianchidev/tap)" rev-parse HEAD)" = "$GITHUB_SHA"
+          shopt -s nullglob globstar
+          for file in Formula/**/*.rb Casks/**/*.rb; do
+            if [[ "$file" == Formula/sendbox.rb ]]; then
+              # The updater's version must precede the interpolated default URL.
+              brew style --except-cops=FormulaAuditStrict,FormulaAudit/ComponentsOrder "$file"
+            else
+              brew style "$file"
+            fi
+          done
+          brew readall --os=all --arch=all --aliases mbianchidev/tap
+
   install:
-    name: Install formula (${{ matrix.runner }})
+    name: Package lifecycle (${{ matrix.runner }})
+    needs: validate
+    if: needs.validate.outputs.packages == 'true'
+    timeout-minutes: 30
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        runner: [macos-15-intel, macos-latest]
+        include:
+          - runner: macos-15-intel
+            architecture: x86_64
+          - runner: macos-latest
+            architecture: arm64
+          - runner: ubuntu-24.04
+            architecture: x86_64
+          - runner: ubuntu-24.04-arm
+            architecture: aarch64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
-      - name: Check formula syntax
-        run: ruby -c Formula/sql-not-so-lite.rb
-
-      - name: Install and test published formula
+      - name: Verify runner architecture
         env:
-          HOMEBREW_NO_ANALYTICS: "1"
+          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
         run: |
-          brew tap mbianchidev/tap
-          brew style --formula mbianchidev/tap/sql-not-so-lite
-          brew install mbianchidev/tap/sql-not-so-lite
-          brew test mbianchidev/tap/sql-not-so-lite
+          test "$(uname -m)" = "$EXPECTED_ARCHITECTURE"
+          if [[ "$(uname -s)" == Darwin ]]; then
+            cpus="$(sysctl -n hw.logicalcpu)"
+          else
+            cpus="$(getconf _NPROCESSORS_ONLN)"
+          fi
+          echo "Logical CPUs: $cpus; package build workers: 2"
+          if (( cpus < 2 )); then
+            echo "HOMEBREW_MAKE_JOBS=1" >> "$GITHUB_ENV"
+            echo "::warning::Only one CPU is available; package builds will use one worker."
+          fi
+
+      - name: Set up Homebrew against the event revision
+        uses: Homebrew/actions/setup-homebrew@0fdc2c96a16d9f945f7e1577784302fd27a549a9
+        with:
+          stable: true
+
+      - name: Cache verified package and dependency downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/Homebrew/downloads
+            ~/.cache/Homebrew/downloads
+          key: homebrew-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Formula/**/*.rb', 'Casks/**/*.rb') }}
+          restore-keys: homebrew-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install, exercise and remove compatible packages
+        env:
+          TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: ruby scripts/ci/test-packages.rb
+
+  create-sendbox-update-pr:
+    name: Prepare stable Sendbox draft PR
+    needs: [validate, install]
+    if: >-
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/heads/automation/sendbox-v') &&
+      needs.install.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Guard stable branch and open one draft for human review
+        env:
+          TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          python3 scripts/ci/sendbox.py open-pr
