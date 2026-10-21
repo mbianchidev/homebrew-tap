@@ -180,7 +180,11 @@ def verify_linkage(libexec):
     if sys.platform != "linux":
         return
     prefix = Path(run("brew", "--prefix", capture=True)).resolve()
-    output = run("ldd", libexec / "sendbox", capture=True)
+    patcher = Path(run("brew", "--prefix", "patchelf", capture=True)) / "bin/patchelf"
+    interpreter = Path(run(patcher, "--print-interpreter", libexec / "sendbox", capture=True))
+    if not interpreter.is_file() or not interpreter.resolve().is_relative_to(prefix):
+        raise ValueError("The installed Linux CLI does not select a Homebrew ELF loader.")
+    output = run(interpreter, "--list", libexec / "sendbox", capture=True)
     print(output)
     if "not found" in output:
         raise ValueError("The installed Linux CLI has unresolved runtime libraries.")

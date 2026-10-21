@@ -64,20 +64,24 @@ preflight and can offer additional installation steps.
 
 ## sql-not-so-lite
 
-Available after its first packaged stable release adds
-`Formula/sql-not-so-lite.rb`. Until then, the commands below are not installable:
+[sql-not-so-lite](https://github.com/mbianchidev/sql-not-so-lite) is an independent
+SQLite daemon with a gRPC API and embedded web GUI. Its actual formula is included
+in this tap alongside Sendbox; it does not depend on Sendbox or its runtime.
 
 ```bash
 brew install mbianchidev/tap/sql-not-so-lite
+sqnsl version
 sqnsl start
 ```
 
-The formula is added automatically by the first packaged stable release of
-[sql-not-so-lite](https://github.com/mbianchidev/sql-not-so-lite). Earlier
-source-only releases do not provide an installable formula.
-
-The formula supports macOS and Linux on ARM64 and AMD64. It installs a
-precompiled binary with the web GUI embedded; Go and Node.js are not required.
+The existing v0.0.2 release has no host binaries, so this bootstrap formula builds
+its real, checksummed published source. It builds the locked React/Vite frontend
+before compiling Go, embedding the GUI in `sqnsl`. Go and Node.js are build tools,
+not runtime dependencies. Intel Macs use verified official build-tool archives
+because current Homebrew Go/Node bottles do not cover that architecture.
+The formula and its GUI are checked on Intel/ARM Macs and Linux x86_64/aarch64.
+Installation never starts the daemon or opens a browser. The commands become
+available from the default tap only after human merge of this draft.
 
 To run the daemon as a user service instead of in the foreground:
 
@@ -88,6 +92,9 @@ brew services stop mbianchidev/tap/sql-not-so-lite
 
 Do not use `sudo` or also run `sqnsl install`. Configuration and databases stay
 under `~/.sql-not-so-lite` and are preserved when upgrading or uninstalling.
+The default daemon scans your home directory. Set `SQNSL_SCAN_ROOT` before starting
+to limit discovery to an explicit directory; configuration is
+`~/.sql-not-so-lite/config.toml`.
 
 ```bash
 brew update
@@ -106,9 +113,18 @@ release checksums/provenance, real previous-stable-to-current `brew upgrade`,
 CLI startup/version/configuration/completions, Linux linkage, unchanged signed
 guest bytes, and preservation of mocked user/project data. No VM or agent is
 started, and none of these lifecycle scripts may run on the maintainer's laptop.
+sql-not-so-lite additionally builds and serves its embedded GUI on localhost,
+creates a mock SQLite database, stops the temporary daemon, and verifies package
+removal preserves the configuration and database bytes. Its scan root and home
+are temporary fixtures, never the runner's real home or the maintainer's data.
 
 Draft PRs intentionally run package CI. Obsolete runs are canceled; package
 downloads and Homebrew's locked style dependencies are cached by OS/architecture.
+SQL frontend npm and Go-module download stores are also cached, bound to the
+checksummed source recipe; installed `node_modules` and credentials are not cached.
+Builds use two workers where available. The SQL bootstrap corrects its tagged
+source's stale `0.1.0` version constant to the actual release version and rejects
+npm dependency audit findings before building the GUI.
 Published binaries are reused without rebuilding Sendbox. There is no historical
 tap CI baseline yet, so runtime savings are not claimed.
 Sendbox's updater requires an explicit version before its interpolated default
@@ -126,7 +142,7 @@ including closed ones, are not duplicated. Humans review and merge; automation
 never pushes to `main` or merges. Subsequent automation-branch pushes are
 validated by push CI rather than duplicate PR runs.
 
-**Activation requires a patched stable release newer than v0.2.2**, verified
+**Sendbox activation requires a patched stable release newer than v0.2.2**, verified
 formula updates, passing lifecycle CI, and human merge of both initial PRs.
 Only then, in this tap's Settings > Actions > General > Workflow permissions,
 an administrator must enable **Allow GitHub
@@ -143,7 +159,7 @@ Plan production activation around a human-approved patched stable release;
 fixing the source lockfile cannot change already published binaries.
 
 Other projects keep their own release tooling and dedicated deploy keys. The
-existing sql-not-so-lite key and future formula are independent of Sendbox.
+existing sql-not-so-lite key and formula are independent of Sendbox.
 Do not commit placeholder hashes or URLs for unpublished assets.
 
 Tap metadata is [MIT licensed](LICENSE); packages retain their upstream licenses.

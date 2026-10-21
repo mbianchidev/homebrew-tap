@@ -20,7 +20,9 @@ permissions:
 env:
   HOMEBREW_NO_ANALYTICS: "1"
   HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_AUTOREMOVE: "1"
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
+  HOMEBREW_MAKE_JOBS: "2"
   GH_TOKEN: ${{ github.token }}
   PYTHONDONTWRITEBYTECODE: "1"
 
@@ -107,7 +109,18 @@ jobs:
       - name: Verify runner architecture
         env:
           EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
-        run: test "$(uname -m)" = "$EXPECTED_ARCHITECTURE"
+        run: |
+          test "$(uname -m)" = "$EXPECTED_ARCHITECTURE"
+          if [[ "$(uname -s)" == Darwin ]]; then
+            cpus="$(sysctl -n hw.logicalcpu)"
+          else
+            cpus="$(getconf _NPROCESSORS_ONLN)"
+          fi
+          echo "Logical CPUs: $cpus; package build workers: 2"
+          if (( cpus < 2 )); then
+            echo "HOMEBREW_MAKE_JOBS=1" >> "$GITHUB_ENV"
+            echo "::warning::Only one CPU is available; package builds will use one worker."
+          fi
 
       - name: Set up Homebrew against the event revision
         uses: Homebrew/actions/setup-homebrew@0fdc2c96a16d9f945f7e1577784302fd27a549a9
@@ -120,6 +133,10 @@ jobs:
           path: |
             ~/Library/Caches/Homebrew/downloads
             ~/.cache/Homebrew/downloads
+            ~/Library/Caches/Homebrew/sql-not-so-lite-go-mod
+            ~/Library/Caches/Homebrew/sql-not-so-lite-npm/_cacache
+            ~/.cache/Homebrew/sql-not-so-lite-go-mod
+            ~/.cache/Homebrew/sql-not-so-lite-npm/_cacache
           key: homebrew-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Formula/**/*.rb', 'Casks/**/*.rb') }}
           restore-keys: homebrew-downloads-${{ runner.os }}-${{ runner.arch }}-
 
