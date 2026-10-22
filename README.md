@@ -111,6 +111,9 @@ After this cask is reviewed and merged:
 brew install --cask mbianchidev/tap/killswitch
 ```
 
+Use the fully qualified `--cask` command: Homebrew/core also has an unrelated VPN
+formula named `killswitch`.
+
 Homebrew installs `KillSwitch.app` and links its bundled executable as
 `killswitchctl`, the invocation name that selects headless CLI mode. The link
 follows `--appdir` when using a custom application directory; no manual symlink is
@@ -170,6 +173,10 @@ The isolated check can also be run locally:
 ruby tests/test_killswitch_cask.rb
 ruby scripts/ci/killswitch.rb Casks/killswitch.rb
 ```
+
+Only the `token_conflicts` audit rule is excepted for this namespaced cask because
+of the unrelated core VPN formula. Normal token syntax and all other strict
+online audit checks remain enabled.
 
 Draft PRs intentionally run package CI. Obsolete runs are canceled; package
 downloads and Homebrew's locked style/audit dependencies are cached by OS/architecture.
