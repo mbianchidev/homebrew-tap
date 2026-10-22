@@ -176,6 +176,11 @@ packages.each do |path|
   elsif RUBY_PLATFORM.include?("darwin")
     next unless compatible?(:cask, qualified)
 
+    if token == "killswitch"
+      run!("ruby", "#{root}/scripts/ci/killswitch.rb", path)
+      next
+    end
+
     sentinel = File.join(ENV.fetch("HOME"), "Library", "Application Support", token, "tap-ci-retained.txt")
     abort "Refusing to overwrite existing cask fixture #{sentinel}." if File.exist?(sentinel)
     FileUtils.mkdir_p(File.dirname(sentinel))

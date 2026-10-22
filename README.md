@@ -98,17 +98,59 @@ brew upgrade mbianchidev/tap/sql-not-so-lite
 brew services restart mbianchidev/tap/sql-not-so-lite
 ```
 
+## KillSwitch
+
+[KillSwitch](https://github.com/mbianchidev/kill-switch) is a macOS menu bar app
+for process management and developer cleanup. The `killswitch` cask installs the
+checksummed, published universal **v1.1.28** DMG on Intel and Apple silicon Macs
+running macOS 13 Ventura or newer. No compiler or source build is required.
+
+After this cask is reviewed and merged:
+
+```bash
+brew install --cask mbianchidev/tap/killswitch
+```
+
+Homebrew installs `KillSwitch.app` and links its bundled executable as
+`killswitchctl`, the invocation name that selects headless CLI mode. The link
+follows `--appdir` when using a custom application directory; no manual symlink is
+needed. Installation does not launch the app, run the CLI, or register a service.
+See the upstream [CLI guide](https://github.com/mbianchidev/kill-switch/blob/main/docs/cli.md)
+before using cleanup or process-management commands.
+
+**The app is ad-hoc signed, not Developer ID signed or notarized.** Gatekeeper
+may block the app or CLI on first use. The cask preserves quarantine and does not
+bypass macOS protections. Review the upstream
+[installation guidance](https://github.com/mbianchidev/kill-switch/blob/main/docs/installation.md)
+before deciding whether to allow it.
+
+```bash
+brew update
+brew upgrade --cask --greedy mbianchidev/tap/killswitch
+brew uninstall --cask mbianchidev/tap/killswitch
+```
+
+The app has an opt-in built-in updater, so the cask declares `auto_updates true`.
+Leave its automatic installation option off when using Homebrew to keep the
+installed version and Homebrew receipt aligned. `--greedy` includes auto-updating
+casks in Homebrew upgrades. GitHub latest livecheck discovers new stable
+releases; maintainers review version/checksum updates. The cask does not run
+upstream install, update, or uninstall scripts, quit running apps, or remove
+preferences, application data, or launch agents.
+
 ## Maintainers
 
 Package definitions live in `Formula/` and `Casks/`. CI discovers both directories,
-accepts an empty tap, checks syntax/style and all platform definitions, and tests
+accepts an empty tap, checks syntax/style, strict online cask audits and all
+platform definitions, and tests
 the checked-out event revision rather than the remote default branch. Compatible
 packages are installed and removed on disposable Intel/ARM Mac and Linux
 x86_64/aarch64 GitHub runners. Casks are not launched. Sendbox additionally checks
 release checksums/provenance, real previous-stable-to-current `brew upgrade`,
 CLI startup/version/configuration/completions, Linux linkage, unchanged signed
 guest bytes, and preservation of mocked user/project data. No VM or agent is
-started, and none of these lifecycle scripts may run on the maintainer's laptop.
+started. The Sendbox and sql-not-so-lite lifecycle checks require disposable
+GitHub-hosted runners, not the maintainer's laptop.
 Sendbox init/policy fixture writes run outside Homebrew's restrictive test
 sandbox; its `brew test` uses read-only CLI commands.
 sql-not-so-lite additionally verifies and serves its embedded GUI on localhost,
@@ -116,8 +158,21 @@ creates a mock SQLite database, stops the temporary daemon, and verifies package
 removal preserves the configuration and database bytes. Its scan root and home
 are temporary fixtures, never the runner's real home or the maintainer's data.
 
+KillSwitch additionally verifies the versioned DMG against GitHub's asset digest
+and the published adjacent checksum. Its lifecycle check uses the real Homebrew
+cask installer with process-local disposable Caskroom, binary and custom
+application directories. It checks the universal app, CLI symlink, code
+signature, retained quarantine, uninstall and mocked user-data preservation.
+Neither the GUI nor CLI is executed; no Gatekeeper protection is bypassed.
+The isolated check can also be run locally:
+
+```bash
+ruby tests/test_killswitch_cask.rb
+ruby scripts/ci/killswitch.rb Casks/killswitch.rb
+```
+
 Draft PRs intentionally run package CI. Obsolete runs are canceled; package
-downloads and Homebrew's locked style dependencies are cached by OS/architecture.
+downloads and Homebrew's locked style/audit dependencies are cached by OS/architecture.
 Builds use two workers where available. Published binaries are reused without
 rebuilding Sendbox or sql-not-so-lite. Credentials are not cached. There is no historical
 tap CI baseline yet, so runtime savings are not claimed.
