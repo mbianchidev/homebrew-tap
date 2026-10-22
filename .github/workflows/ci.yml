@@ -50,7 +50,12 @@ jobs:
             packages=true
           done
           echo "packages=$packages" >> "$GITHUB_OUTPUT"
-          ruby -c scripts/ci/test-packages.rb
+          for file in scripts/ci/*.rb tests/test_*.rb; do
+            ruby -c "$file"
+          done
+          for file in tests/test_*.rb; do
+            ruby "$file"
+          done
           python3 -m unittest discover -s tests -p 'test_*.py'
 
       - name: Set up Homebrew against the event revision
