@@ -177,6 +177,7 @@ packages.each do |path|
     next unless compatible?(:cask, qualified)
 
     if token == "killswitch"
+      run!("brew", "audit", "--cask", "--strict", "--online", qualified)
       run!("ruby", "#{root}/scripts/ci/killswitch.rb", path)
       next
     end

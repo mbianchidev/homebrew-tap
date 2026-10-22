@@ -82,9 +82,6 @@ jobs:
             if [[ "$file" == Formula/sendbox.rb ]]; then
               # The updater's version must precede the interpolated default URL.
               brew style --except-cops=FormulaAuditStrict,FormulaAudit/ComponentsOrder "$file"
-            elif [[ "$file" == Casks/* ]]; then
-              brew style "$file"
-              brew audit --cask --strict --online --os=macos --arch=all "mbianchidev/tap/$(basename "$file" .rb)"
             else
               brew style "$file"
             fi

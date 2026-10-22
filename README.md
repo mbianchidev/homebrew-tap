@@ -141,9 +141,9 @@ preferences, application data, or launch agents.
 ## Maintainers
 
 Package definitions live in `Formula/` and `Casks/`. CI discovers both directories,
-accepts an empty tap, checks syntax/style, strict online cask audits and all
-platform definitions, and tests
-the checked-out event revision rather than the remote default branch. Compatible
+accepts an empty tap, checks syntax/style and all platform definitions, and tests
+the checked-out event revision rather than the remote default branch. Strict
+online DMG cask audits run on macOS, where `hdiutil` is available. Compatible
 packages are installed and removed on disposable Intel/ARM Mac and Linux
 x86_64/aarch64 GitHub runners. Casks are not launched. Sendbox additionally checks
 release checksums/provenance, real previous-stable-to-current `brew upgrade`,
