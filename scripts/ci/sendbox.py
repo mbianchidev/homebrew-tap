@@ -142,12 +142,16 @@ def verify_archive(version, target, expected, temporary):
     fields = checksum.read_text().split()
     if fields != [expected, name] or actual != expected:
         raise ValueError(f"Downloaded bytes or adjacent checksum disagree for {name}")
+    verify_attestation(archive, version)
+    return archive
+
+
+def verify_attestation(archive, version):
     run(
         "gh", "attestation", "verify", archive, "--repo", REPOSITORY,
         "--signer-workflow", f"{REPOSITORY}/.github/workflows/release.yaml",
         "--source-ref", f"refs/tags/v{version}", "--deny-self-hosted-runners",
     )
-    return archive
 
 
 def verify_guest_bytes(archive, libexec):

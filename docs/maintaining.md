@@ -8,9 +8,10 @@
 | --- | --- |
 | [`Formula/`](../Formula) | Sendbox and sql-not-so-lite package definitions |
 | [`Casks/`](../Casks) | KillSwitch app and bundled CLI artifacts |
-| [`scripts/ci/`](../scripts/ci) | Package lifecycle checks and Sendbox update validation |
+| [`scripts/ci/`](../scripts/ci) | Package lifecycle checks and verified release updates |
 | [`tests/`](../tests) | Mock-data regression tests |
 | [Package workflow](../.github/workflows/ci.yml) | Definition checks and native lifecycle matrix |
+| [Update workflow](../.github/workflows/update-packages.yml) | Daily/manual stable-release detection and draft updates |
 
 The tap consumes upstream release artifacts; it does not build or publish the
 upstream applications. Keep their release tooling in their source repositories.
@@ -31,7 +32,7 @@ Contributor responsibility, including AI-assisted work, is described in the
 
 ## Local checks
 
-Use Ruby with Minitest, Python 3 and Homebrew. The isolated KillSwitch lifecycle
+Use Ruby with Minitest, Python 3.11+ and Homebrew. The isolated KillSwitch lifecycle
 check also needs macOS and authenticated GitHub CLI access to release metadata.
 Homebrew manages its locked style and audit dependencies.
 
@@ -113,6 +114,52 @@ full network isolation.
 
 ## Release updates
 
+### Scheduled updates for all packages
+
+The **Package updates** workflow checks Sendbox, sql-not-so-lite and KillSwitch
+daily at **06:17 UTC**. It can also run manually from the Actions tab on `main`;
+manual runs default to a dry run. Clear the dry-run option to publish updates.
+Scheduled workflows become active only after the workflow is merged into the
+default branch.
+
+For each newer stable `vX.Y.Z` release, the updater verifies every supported
+platform artifact against its GitHub SHA-256 digest and the adjacent published
+checksum or checksum manifest. Sendbox archives also require the existing
+tag-bound release-workflow attestations. Missing platform artifacts, ambiguous
+assets, mismatched hashes and prereleases fail explicitly rather than producing
+partial package updates. No application, service, VM or agent is launched.
+
+The updater changes only the version, release URLs where necessary and checksums
+in the affected definition. It pushes `automation/<package>-vX.Y.Z` and opens one
+**draft** pull request for human review. Existing matching branches and open PRs
+are reused, including recovery after interrupted PR creation or CI dispatch.
+Unexpected branch edits are not overwritten; closed or merged PRs are not
+duplicated. No update is pushed to `main`, and nothing is merged automatically.
+
+The workflow uses the repository-scoped `GITHUB_TOKEN`, not a new personal token
+or deploy key. Write permissions are limited to the update job. GitHub does not
+run push CI for token-created commits, and token-created PR workflows can require
+approval, so the updater explicitly dispatches the existing **Packages** workflow
+on the exact update branch. All native lifecycle checks and strict cask audits
+remain enabled. Existing failed current-head CI is reported for attention, not
+silently retried or accepted. Unrelated packages are checked independently.
+
+Preview releases locally with authenticated `gh`, without editing definitions,
+creating branches or opening PRs:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m scripts.ci.package_updates --dry-run
+PYTHONDONTWRITEBYTECODE=1 python3 -m scripts.ci.package_updates --package killswitch --dry-run
+```
+
+Downloads use automatically cleaned temporary directories. Actual publishing is
+restricted to this tap's GitHub-hosted `main` workflow and a clean event-revision
+checkout. Do not bypass that guard on a laptop. When adding a package or changing
+its upstream asset layout, update the package registry and mock-data tests in
+`scripts/ci/package_updates.py` and `tests/test_package_updates.py`.
+
+### Source-driven Sendbox updates
+
 Sendbox stable-release automation verifies published artifacts in its source
 repository, changes only the formula's version and three checksums, and uses a
 dedicated tap-scoped SSH deploy key to push `automation/sendbox-vX.Y.Z`.
@@ -132,12 +179,13 @@ For automated draft creation, enable **Allow GitHub Actions to create and approv
 pull requests** in the tap's Settings > Actions > General > Workflow permissions.
 If permission is missing, automation reports a failure and leaves the validated
 branch available for a manually opened draft. Do not enable auto-merge or widen
-the token's repository permissions.
+the token's repository permissions beyond those required by the update jobs.
 
-KillSwitch uses GitHub latest livecheck for stable-release discovery.
-Maintainers verify the actual versioned DMG, its GitHub digest and the published
-checksum before updating the cask's version and SHA-256. Keep `auto_updates true`
-and the documented greedy-upgrade behavior while the built-in updater exists.
+KillSwitch also keeps GitHub latest livecheck for independent stable-release
+auditing. Automated or manual updates verify the actual versioned DMG, its GitHub
+digest and the published checksum before changing the cask's version and SHA-256.
+Keep `auto_updates true` and the documented greedy-upgrade behavior while the
+built-in updater exists.
 
-Other projects keep their own release tooling and dedicated deploy keys.
-sql-not-so-lite's formula and release credentials remain independent of Sendbox.
+Upstream projects retain their own release tooling and credentials. The scheduled
+tap updater reads public releases and does not reuse their publishing credentials.
