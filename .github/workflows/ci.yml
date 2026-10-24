@@ -29,7 +29,7 @@ env:
 jobs:
   validate:
     if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'automation/sendbox-v')
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
       packages: ${{ steps.discover.outputs.packages }}
@@ -105,8 +105,9 @@ jobs:
             architecture: x86_64
           - runner: macos-latest
             architecture: arm64
-          - runner: ubuntu-24.04
+          - runner: ubuntu-latest
             architecture: x86_64
+          # GitHub publishes only versioned Ubuntu ARM labels.
           - runner: ubuntu-24.04-arm
             architecture: aarch64
     runs-on: ${{ matrix.runner }}
@@ -164,7 +165,7 @@ jobs:
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/heads/automation/sendbox-v') &&
       needs.install.result == 'success'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read

@@ -82,6 +82,11 @@ x86_64/aarch64 runners. Strict online DMG cask audits run on macOS because they
 need `hdiutil`. Packages remain independent; an unavailable platform is reported
 as skipped rather than blocking unrelated packages.
 
+Ubuntu x86_64 jobs follow `ubuntu-latest`. GitHub provides only versioned
+[Ubuntu ARM runner labels](https://docs.github.com/en/actions/reference/runners/github-hosted-runners),
+so native ARM coverage uses `ubuntu-24.04-arm`, not an unsupported
+`ubuntu-latest-arm` alias.
+
 Sendbox checks release checksums and tag-bound provenance, a real
 previous-stable-to-current `brew upgrade`, version/help/configuration/completions,
 Linux linkage, signed guest-byte preservation, uninstall and mocked user/project

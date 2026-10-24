@@ -20,7 +20,7 @@ permissions:
 jobs:
   update:
     if: github.repository == 'mbianchidev/homebrew-tap' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
