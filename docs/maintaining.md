@@ -36,6 +36,12 @@ Use Ruby with Minitest, Python 3.11+ and Homebrew. The isolated KillSwitch lifec
 check also needs macOS and authenticated GitHub CLI access to release metadata.
 Homebrew manages its locked style and audit dependencies.
 
+CI explicitly selects [Python 3.15.1](https://www.python.org/downloads/release/python-3151/)
+for regression tests, Sendbox lifecycle checks and both package-update workflows.
+Use that interpreter as `python3` to match CI locally; Python 3.11+ remains supported
+for local checks. The Python tools use only the standard library, with no Python
+packages to install.
+
 From the repository root:
 
 ```bash
