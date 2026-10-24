@@ -78,14 +78,18 @@ jobs:
         run: |
           test "$(git -C "$(brew --repository mbianchidev/tap)" rev-parse HEAD)" = "$GITHUB_SHA"
           shopt -s nullglob globstar
+          standard_style_files=()
           for file in Formula/**/*.rb Casks/**/*.rb; do
             if [[ "$file" == Formula/sendbox.rb ]]; then
               # The updater's version must precede the interpolated default URL.
               brew style --except-cops=FormulaAuditStrict,FormulaAudit/ComponentsOrder "$file"
             else
-              brew style "$file"
+              standard_style_files+=("$file")
             fi
           done
+          if (( ${#standard_style_files[@]} > 0 )); then
+            brew style "${standard_style_files[@]}"
+          fi
           brew readall --os=all --arch=all --aliases mbianchidev/tap
 
   install:
@@ -128,9 +132,16 @@ jobs:
           fi
 
       - name: Set up Homebrew against the event revision
+        id: homebrew
         uses: Homebrew/actions/setup-homebrew@0fdc2c96a16d9f945f7e1577784302fd27a549a9
         with:
           stable: true
+
+      - name: Cache Homebrew audit and test dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.homebrew.outputs.gems-path }}
+          key: homebrew-gems-${{ runner.os }}-${{ runner.arch }}-${{ steps.homebrew.outputs.gems-hash }}
 
       - name: Cache verified package and dependency downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

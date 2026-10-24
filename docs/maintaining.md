@@ -98,8 +98,12 @@ qualified cask shares a token with an unrelated core VPN formula. Normal token
 syntax and all other audit checks remain enabled.
 
 Draft pull requests run package CI. Obsolete runs are canceled, matrices fail
-fast, and package downloads and locked style dependencies are cached by
-OS/architecture. Build workers are limited to two where available; upstream
+fast, and package downloads are cached by OS/architecture. Validation and
+lifecycle jobs reuse Homebrew's locked Ruby dependencies from the same
+OS/architecture/lockfile-keyed cache, including native audit and formula-test
+dependencies. A cache miss still installs the locked dependencies normally.
+Standard style checks run in one batch; Sendbox keeps its separate, narrowly
+scoped exception. Build workers are limited to two where available; upstream
 application binaries are reused rather than rebuilt. Credentials are not cached.
 
 Linux hosted kernels can expose an older Landlock ABI than the ABI 10 required
