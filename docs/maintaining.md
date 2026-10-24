@@ -87,6 +87,11 @@ Ubuntu x86_64 jobs follow `ubuntu-latest`. GitHub provides only versioned
 so native ARM coverage uses `ubuntu-24.04-arm`, not an unsupported
 `ubuntu-latest-arm` alias.
 
+ARM macOS follows `macos-latest`. That alias selects ARM hardware, not Intel,
+so `macos-15-intel` remains pinned to preserve native Intel coverage and existing
+check names. GitHub provides no standard Intel latest alias; no larger or paid
+runner is substituted.
+
 Sendbox checks release checksums and tag-bound provenance, a real
 previous-stable-to-current `brew upgrade`, version/help/configuration/completions,
 Linux linkage, signed guest-byte preservation, uninstall and mocked user/project

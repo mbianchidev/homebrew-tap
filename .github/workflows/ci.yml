@@ -101,6 +101,7 @@ jobs:
       fail-fast: true
       matrix:
         include:
+          # macos-latest is ARM; Intel coverage needs a versioned runner.
           - runner: macos-15-intel
             architecture: x86_64
           - runner: macos-latest
