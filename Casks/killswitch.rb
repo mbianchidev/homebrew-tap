@@ -1,6 +1,6 @@
 cask "killswitch" do
-  version "1.1.28"
-  sha256 "01147aeda88b70c5f4c76fd501cf38dd46dc360c518ba3bb573f48433f8c273e"
+  version "1.1.30"
+  sha256 "716eb5b432bbd534533658946a51bcd31e7c1cbc83bd7d5a6f9fa85de0fcee46"
 
   url "https://github.com/mbianchidev/kill-switch/releases/download/v#{version}/KillSwitch.dmg"
   name "KillSwitch"
