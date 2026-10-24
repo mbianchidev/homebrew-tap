@@ -1,0 +1,61 @@
+name: Package updates
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Verify available releases without creating branches or pull requests
+        type: boolean
+        default: true
+
+concurrency:
+  group: package-updates
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    if: github.repository == 'mbianchidev/homebrew-tap' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      attestations: read
+    strategy:
+      # A broken upstream release must not block updates for unrelated packages.
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        package: [sendbox, sql-not-so-lite, killswitch]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PYTHONDONTWRITEBYTECODE: "1"
+      PACKAGE: ${{ matrix.package }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+      UPDATE_GIT_NAME: ${{ github.repository_owner }}
+      UPDATE_GIT_EMAIL: ${{ github.repository_owner_id }}+${{ github.repository_owner }}@users.noreply.github.com
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Authenticate branch pushes with the job-scoped token
+        if: env.DRY_RUN != 'true'
+        run: gh auth setup-git
+
+      - name: Verify new stable releases and prepare draft updates
+        env:
+          TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          if [[ "$DRY_RUN" == true ]]; then
+            python3 -m scripts.ci.package_updates --package "$PACKAGE" --dry-run
+          else
+            python3 -m scripts.ci.package_updates --package "$PACKAGE"
+          fi

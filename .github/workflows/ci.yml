@@ -29,7 +29,7 @@ env:
 jobs:
   validate:
     if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'automation/sendbox-v')
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
       packages: ${{ steps.discover.outputs.packages }}
@@ -78,14 +78,18 @@ jobs:
         run: |
           test "$(git -C "$(brew --repository mbianchidev/tap)" rev-parse HEAD)" = "$GITHUB_SHA"
           shopt -s nullglob globstar
+          standard_style_files=()
           for file in Formula/**/*.rb Casks/**/*.rb; do
             if [[ "$file" == Formula/sendbox.rb ]]; then
               # The updater's version must precede the interpolated default URL.
               brew style --except-cops=FormulaAuditStrict,FormulaAudit/ComponentsOrder "$file"
             else
-              brew style "$file"
+              standard_style_files+=("$file")
             fi
           done
+          if (( ${#standard_style_files[@]} > 0 )); then
+            brew style "${standard_style_files[@]}"
+          fi
           brew readall --os=all --arch=all --aliases mbianchidev/tap
 
   install:
@@ -97,12 +101,14 @@ jobs:
       fail-fast: true
       matrix:
         include:
+          # macos-latest is ARM; Intel coverage needs a versioned runner.
           - runner: macos-15-intel
             architecture: x86_64
           - runner: macos-latest
             architecture: arm64
-          - runner: ubuntu-24.04
+          - runner: ubuntu-latest
             architecture: x86_64
+          # GitHub publishes only versioned Ubuntu ARM labels.
           - runner: ubuntu-24.04-arm
             architecture: aarch64
     runs-on: ${{ matrix.runner }}
@@ -128,9 +134,16 @@ jobs:
           fi
 
       - name: Set up Homebrew against the event revision
+        id: homebrew
         uses: Homebrew/actions/setup-homebrew@0fdc2c96a16d9f945f7e1577784302fd27a549a9
         with:
           stable: true
+
+      - name: Cache Homebrew audit and test dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.homebrew.outputs.gems-path }}
+          key: homebrew-gems-${{ runner.os }}-${{ runner.arch }}-${{ steps.homebrew.outputs.gems-hash }}
 
       - name: Cache verified package and dependency downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -153,7 +166,7 @@ jobs:
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/heads/automation/sendbox-v') &&
       needs.install.result == 'success'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
