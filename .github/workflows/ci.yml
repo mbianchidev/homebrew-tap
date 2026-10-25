@@ -38,6 +38,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.1"
+
       - name: Discover packages and check syntax
         id: discover
         shell: bash
@@ -139,6 +144,11 @@ jobs:
         with:
           stable: true
 
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.1"
+
       - name: Cache Homebrew audit and test dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -176,6 +186,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.1"
 
       - name: Guard stable branch and open one draft for human review
         env:
