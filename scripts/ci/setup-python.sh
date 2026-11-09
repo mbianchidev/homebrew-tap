@@ -45,6 +45,7 @@ esac
 
 cache="$RUNNER_TOOL_CACHE/Python/$version/$arch"
 if [[ ! -f "$cache.complete" ]]; then
+  [[ -n "${GH_TOKEN:-}" ]] || fail "the job-scoped GitHub token is required for asset downloads"
   directory="$(mktemp -d "$RUNNER_TEMP/tap-python.XXXXXX")"
   cleanup() {
     [[ "$directory" == "$RUNNER_TEMP"/tap-python.* ]] || fail "refusing unexpected cleanup path"
@@ -54,6 +55,7 @@ if [[ ! -f "$cache.complete" ]]; then
   archive="$directory/python.tar.gz"
   curl --fail --silent --show-error --location --retry 5 --retry-max-time 600 \
     --connect-timeout 10 --max-time 600 --header 'Accept: application/octet-stream' \
+    --header "Authorization: Bearer $GH_TOKEN" \
     "https://api.github.com/repos/actions/python-versions/releases/assets/$asset" --output "$archive"
   printf '%s  %s\n' "$digest" "$archive" | "${checksum_command[@]}"
   tar -xzf "$archive" -C "$directory"
