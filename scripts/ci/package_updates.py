@@ -479,6 +479,10 @@ def merge_update(run_id, dry_run=False):
         candidate = definition_at(package.path, head) if package.path in paths else original
         if current_version(candidate) != release_version(latest):
             raise ValueError(f"{package.name} no longer matches its latest stable release; prepare a fresh batch.")
+        if update_text(
+            package, candidate, release_version(latest), release_digests(package, latest),
+        ) != candidate:
+            raise ValueError(f"{package.path} no longer matches the latest published artifact digests.")
         if package.path in paths:
             update = prepare_update(package, original, latest)
             if update is None or update[1] != candidate:

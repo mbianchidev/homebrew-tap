@@ -501,8 +501,10 @@ class AutomaticMergeTests(unittest.TestCase):
         for package in UPDATES.PACKAGES.values():
             path = self.root / package.path
             path.parent.mkdir(exist_ok=True)
-            path.write_text(mock_definition(package))
             release, _ = mock_release(package, "1.2.3")
+            path.write_text(UPDATES.update_text(
+                package, mock_definition(package), "1.2.3", UPDATES.release_digests(package, release),
+            ))
             self.responses[f"repos/{package.repository}/releases/latest"] = release
         original = (self.root / self.package.path).read_text()
         _, self.updated = UPDATES.prepare_update(self.package, original, self.release)
@@ -687,6 +689,17 @@ class AutomaticMergeTests(unittest.TestCase):
             ), self.assertRaises(ValueError):
                 UPDATES.merge_update(123)
             self.assert_no_merge()
+
+    def test_rejects_unchanged_package_hashes_that_disagree_with_latest_release_metadata(self):
+        package = UPDATES.PACKAGES["sql-not-so-lite"]
+        path = self.root / package.path
+        original = path.read_text()
+        release = self.responses[f"repos/{package.repository}/releases/latest"]
+        digest = UPDATES.release_digests(package, release)[package.asset_names("1.2.3")[0]]
+        path.write_text(original.replace(digest, "0" * 64, 1))
+        with self.assertRaisesRegex(ValueError, "latest published artifact digests"):
+            UPDATES.merge_update(123)
+        self.assert_no_merge()
 
     def test_missing_failed_cancelled_or_pending_native_coverage_cannot_merge(self):
         data = self.responses[f"{self.prefix}/actions/runs/123/jobs?per_page=100"]
