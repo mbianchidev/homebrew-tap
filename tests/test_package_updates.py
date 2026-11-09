@@ -1,6 +1,7 @@
 import base64
 import copy
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -837,12 +838,14 @@ class RetirementTests(unittest.TestCase):
             f"repos/{self.package.repository}/releases/tags/v1.2.4": self.release,
         }
         self.commands = []
+        self.stdout = io.StringIO()
         for patcher in (
             mock.patch.object(UPDATES, "ROOT", self.root),
             mock.patch.object(UPDATES, "git", return_value=self.main),
             mock.patch.object(UPDATES.sendbox, "api", side_effect=self.responses.__getitem__),
             mock.patch.object(UPDATES, "run", side_effect=self.run_command),
             mock.patch.object(UPDATES, "check_reviews"),
+            mock.patch("sys.stdout", self.stdout),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -884,6 +887,7 @@ class RetirementTests(unittest.TestCase):
         content["content"] = base64.b64encode(candidate.encode()).decode()
         UPDATES.retire_updates()
         self.assert_no_close()
+        self.assertIn("::warning::Keeping PR #1", self.stdout.getvalue())
 
     def test_preserves_changed_head_or_main_and_unresolved_review_feedback(self):
         for path, change in (
