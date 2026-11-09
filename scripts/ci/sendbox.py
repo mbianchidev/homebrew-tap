@@ -130,6 +130,7 @@ def verify_archive(version, target, expected, temporary):
     release = api(f"repos/{REPOSITORY}/releases/tags/v{version}")
     if release_digests(release)[target] != expected:
         raise ValueError(f"Formula and GitHub asset digests disagree for v{version}/{target}.")
+    run(sys.executable, "-m", "scripts.ci.package_updates", "--prefetch", "sendbox")
     run("brew", "fetch", "--formula", TAP)
     archive = Path(run("brew", "--cache", "--formula", TAP, capture=True))
     actual = hashlib.sha256(archive.read_bytes()).hexdigest()

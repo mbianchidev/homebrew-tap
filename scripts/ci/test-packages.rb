@@ -161,6 +161,7 @@ packages.each do |path|
   if path.start_with?("#{root}/Formula/")
     next unless compatible?(:formula, qualified)
 
+    run!("python3", "-m", "scripts.ci.package_updates", "--prefetch", token) unless token == "sendbox"
     if token == "sendbox"
       run!("python3", "#{root}/scripts/ci/sendbox.py", "lifecycle", path)
     else
@@ -176,6 +177,7 @@ packages.each do |path|
   elsif RUBY_PLATFORM.include?("darwin")
     next unless compatible?(:cask, qualified)
 
+    run!("python3", "-m", "scripts.ci.package_updates", "--prefetch", token)
     if token == "killswitch"
       # An unrelated core VPN formula shares this explicitly qualified cask's token.
       run!("brew", "audit", "--cask", "--strict", "--online", "--except=token_conflicts", qualified)

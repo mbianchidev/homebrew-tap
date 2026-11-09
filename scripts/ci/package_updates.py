@@ -236,6 +236,68 @@ def verify_release(package, release):
     print(f"Verified all {package.name} {version} artifacts and published checksums.")
 
 
+def prefetch(package):
+    if (
+        os.environ.get("GITHUB_ACTIONS") != "true"
+        or os.environ.get("TAP_CI_RUNNER_ENVIRONMENT") != "github-hosted"
+        or os.environ.get("GITHUB_REPOSITORY") != REPOSITORY
+    ):
+        raise ValueError("Cache preparation requires this tap's GitHub-hosted CI.")
+    kind = "--cask" if package.path.startswith("Casks/") else "--formula"
+    qualified = f"mbianchidev/tap/{package.name}"
+    info = json.loads(run("brew", "info", "--json=v2", kind, qualified, capture=True))
+    entries = info["casks" if kind == "--cask" else "formulae"]
+    if len(entries) != 1:
+        raise ValueError("Expected exactly one package definition for cache preparation.")
+    entry = entries[0]
+    if kind == "--cask":
+        name, version, url, expected = entry["token"], entry["version"], entry["url"], entry["sha256"]
+    else:
+        stable = entry["urls"]["stable"]
+        name, version = entry["name"], entry["versions"]["stable"]
+        url, expected = stable["url"], stable["checksum"]
+    if name != package.name or not isinstance(expected, str) or not DIGEST.fullmatch(expected):
+        raise ValueError("Expected the registered package and a pinned SHA-256 checksum.")
+    sendbox.stable_version(version)
+    names = [
+        asset for asset in package.asset_names(version)
+        if url == f"https://github.com/{package.repository}/releases/download/v{version}/{asset}"
+    ]
+    if len(names) != 1:
+        raise ValueError("The package URL must identify one canonical registered release asset.")
+    release = sendbox.api(f"repos/{package.repository}/releases/tags/v{version}")
+    if release_version(release) != version or release_digests(package, release)[names[0]] != expected:
+        raise ValueError("Package checksum and published GitHub asset digest disagree.")
+    asset = next(asset for asset in release["assets"] if asset["name"] == names[0])
+    size = asset.get("size")
+    if type(size) is not int or size <= 0:
+        raise ValueError("Expected the published asset's positive byte size.")
+    root = Path(run("brew", "--cache", capture=True)).resolve() / "downloads"
+    target = Path(run("brew", "--cache", kind, qualified, capture=True))
+    if not target.is_absolute() or target.is_symlink() or target.parent.resolve() != root.resolve():
+        raise ValueError("Refusing to prepare an asset outside Homebrew's download cache.")
+    if target.exists():
+        with target.open("rb") as stream:
+            actual = hashlib.file_digest(stream, "sha256").hexdigest()
+        if target.stat().st_size != size or actual != expected:
+            raise ValueError("Existing cached bytes do not match the pinned published asset.")
+        print(f"Verified existing Homebrew cache for {package.name} {version}.")
+        return
+    root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="tap-verified-download-", dir=root) as directory:
+        temporary = Path(directory) / names[0]
+        run(
+            "gh", "release", "download", f"v{version}", "--repo", package.repository,
+            "--pattern", names[0], "--output", temporary,
+        )
+        with temporary.open("rb") as stream:
+            actual = hashlib.file_digest(stream, "sha256").hexdigest()
+        if temporary.stat().st_size != size or actual != expected:
+            raise ValueError("API-downloaded bytes do not match the pinned asset size and SHA-256.")
+        os.replace(temporary, target)
+    print(f"Prepared verified Homebrew cache for {package.name} {version}; recipe URL unchanged.")
+
+
 def git(*arguments):
     return run("git", "-C", ROOT, *arguments, capture=True)
 
@@ -629,7 +691,13 @@ def main(arguments=None):
     parser.add_argument("--package", choices=PACKAGES)
     parser.add_argument("--dry-run", action="store_true", help="Verify without writing files, branches or PRs.")
     parser.add_argument("--merge-run", help="Verify and merge the update covered by this native CI run.")
+    parser.add_argument("--prefetch", choices=PACKAGES, help="Prepare the current CI package's verified download cache.")
     arguments = parser.parse_args(arguments)
+    if arguments.prefetch:
+        if arguments.package or arguments.merge_run or arguments.dry_run:
+            raise ValueError("Cache preparation is a separate hosted-CI operation.")
+        prefetch(PACKAGES[arguments.prefetch])
+        return
     if arguments.merge_run:
         if arguments.package:
             raise ValueError("Merge validation always covers every registered package.")

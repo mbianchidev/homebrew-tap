@@ -305,6 +305,101 @@ class ReleaseUpdateTests(unittest.TestCase):
         merge.assert_not_called()
 
 
+class CachePreparationTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="mock-tap-cache-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name) / "cache"
+        self.commands = []
+        self.target = self.root / "downloads" / "mock-asset"
+        for patcher in (
+            mock.patch.dict(os.environ, {
+                "GITHUB_ACTIONS": "true", "TAP_CI_RUNNER_ENVIRONMENT": "github-hosted",
+                "GITHUB_REPOSITORY": UPDATES.REPOSITORY,
+            }),
+            mock.patch.object(UPDATES, "run", side_effect=self.run_command),
+            mock.patch.object(UPDATES.sendbox, "api", side_effect=lambda path: self.release),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def configure(self, package):
+        self.package = package
+        self.release, self.contents = mock_release(package)
+        name = package.asset_names("9.8.7")[0]
+        asset = next(asset for asset in self.release["assets"] if asset["name"] == name)
+        asset["size"] = len(self.contents[name])
+        self.info = (
+            {"casks": [{"token": package.name, "version": "9.8.7",
+                        "url": asset["browser_download_url"], "sha256": asset["digest"][7:]}]}
+            if package.path.startswith("Casks/") else
+            {"formulae": [{"name": package.name, "versions": {"stable": "9.8.7"},
+                          "urls": {"stable": {"url": asset["browser_download_url"],
+                                              "checksum": asset["digest"][7:]}}}]}
+        )
+
+    def run_command(self, *arguments, **kwargs):
+        self.commands.append(arguments)
+        if arguments[:2] == ("brew", "info"):
+            return json.dumps(self.info)
+        if arguments == ("brew", "--cache"):
+            return str(self.root)
+        if arguments[:2] == ("brew", "--cache"):
+            return str(self.target)
+        if arguments[:3] == ("gh", "release", "download"):
+            name = arguments[arguments.index("--pattern") + 1]
+            Path(arguments[arguments.index("--output") + 1]).write_bytes(self.contents[name])
+            return ""
+        self.fail(f"Unexpected cache command: {arguments}")
+
+    def test_prepares_each_package_using_exact_published_bytes_and_reuses_verified_cache(self):
+        for package in UPDATES.PACKAGES.values():
+            with self.subTest(package=package.name):
+                self.configure(package)
+                self.target = self.root / "downloads" / f"mock-{package.name}"
+                UPDATES.prefetch(package)
+                self.assertEqual(self.target.read_bytes(), self.contents[package.asset_names("9.8.7")[0]])
+                self.commands.clear()
+                UPDATES.prefetch(package)
+                self.assertFalse(any(call[:3] == ("gh", "release", "download") for call in self.commands))
+
+    def test_rejects_changed_download_bytes_without_creating_cache_entry(self):
+        self.configure(UPDATES.PACKAGES["denote"])
+        self.contents[self.package.asset_names("9.8.7")[0]] = b"mock altered payload"
+        with self.assertRaisesRegex(ValueError, "size and SHA"):
+            UPDATES.prefetch(self.package)
+        self.assertFalse(self.target.exists())
+
+    def test_does_not_replace_an_invalid_existing_cache_entry(self):
+        self.configure(UPDATES.PACKAGES["porto"])
+        self.target.parent.mkdir(parents=True)
+        self.target.write_bytes(b"mock unexpected cache bytes")
+        with self.assertRaisesRegex(ValueError, "Existing cached"):
+            UPDATES.prefetch(self.package)
+        self.assertEqual(self.target.read_bytes(), b"mock unexpected cache bytes")
+
+    def test_rejects_different_origin_or_recipe_checksum(self):
+        self.configure(UPDATES.PACKAGES["denote"])
+        entry = self.info["casks"][0]
+        for change in (
+            {"url": "https://example.invalid/mock.dmg"}, {"sha256": "0" * 64},
+        ):
+            with self.subTest(change=change), mock.patch.dict(entry, change), self.assertRaises(ValueError):
+                UPDATES.prefetch(self.package)
+            self.assertFalse(self.target.exists())
+
+    def test_refuses_non_hosted_use_and_paths_outside_download_cache(self):
+        self.configure(UPDATES.PACKAGES["killswitch"])
+        with mock.patch.dict(os.environ, {"TAP_CI_RUNNER_ENVIRONMENT": "self-hosted"}), \
+                self.assertRaisesRegex(ValueError, "GitHub-hosted"):
+            UPDATES.prefetch(self.package)
+        self.assertEqual(self.commands, [])
+        self.target = self.root.parent / "mock-outside"
+        with self.assertRaisesRegex(ValueError, "outside Homebrew"):
+            UPDATES.prefetch(self.package)
+        self.assertFalse(self.target.exists())
+
+
 class PublishingTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="mock-package-updates-")

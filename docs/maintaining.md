@@ -49,6 +49,14 @@ select the verified tool-cache entry. This avoids the browser download route's
 observed HTTP 504 failures without changing the interpreter or weakening checks.
 The bootstrap refuses non-hosted environments. Update its pinned asset map when
 changing Python or supported Ubuntu runner releases.
+Native CI also prepares Homebrew's own download-cache entry through GitHub's
+release API. The evaluated architecture-specific recipe URL, repository, tag,
+asset name, published byte size and GitHub SHA-256 must agree before verified
+bytes are stored atomically in that cache. Recipe URLs and checksums remain
+unchanged, and Homebrew still performs its normal fetch/install checks.
+This hosted-only transport avoids release-browser-route HTTP 504 failures;
+it never accepts a mirror, different asset, unchecked bytes or an invalid
+existing cache entry. Strict online homepage/release audits remain enabled.
 
 From the repository root:
 
