@@ -122,12 +122,14 @@ def release_digests(package, release):
 def definition_pattern(package, version, name):
     if package.name == "killswitch":
         return re.compile(r'^  sha256 "(?P<digest>[0-9a-f]{64})"$', re.MULTILINE)
-    url = f"https://github.com/{package.repository}/releases/download/v{version}/{name}"
     if package.path.startswith("Casks/"):
+        asset = name.replace(version, "#{version}")
+        url = f"https://github.com/{package.repository}/releases/download/v#{{version}}/{asset}"
         return re.compile(
             r'^(?P<indent>[ \t]*)sha256 "(?P<digest>[0-9a-f]{64})"\n\n[ \t]*url "'
             + re.escape(url) + r'"$', re.MULTILINE,
         )
+    url = f"https://github.com/{package.repository}/releases/download/v{version}/{name}"
     return re.compile(
         r'^(?P<indent>[ \t]*)url "' + re.escape(url)
         + r'"\n[ \t]*sha256 "(?P<digest>[0-9a-f]{64})"$',
@@ -157,7 +159,11 @@ def update_text(package, text, version, digests):
         if package.name == "killswitch":
             replacement = f'  sha256 "{digest}"'
         else:
-            url = f"https://github.com/{package.repository}/releases/download/v{version}/{name}"
+            if package.path.startswith("Casks/"):
+                asset = name.replace(version, "#{version}")
+                url = f"https://github.com/{package.repository}/releases/download/v#{{version}}/{asset}"
+            else:
+                url = f"https://github.com/{package.repository}/releases/download/v{version}/{name}"
             indent = pattern.search(text).group("indent")
             replacement = (
                 f'{indent}sha256 "{digest}"\n\n{indent}url "{url}"'

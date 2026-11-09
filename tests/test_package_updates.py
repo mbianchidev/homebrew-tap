@@ -21,7 +21,7 @@ def mock_definition(package, version="1.2.3"):
             f'  url "https://github.com/{package.repository}/releases/download/v#{{version}}/KillSwitch.dmg"',
         ])
     else:
-        url_version = "#{version}" if package.name == "sendbox" else version
+        url_version = "#{version}" if package.name == "sendbox" or package.path.startswith("Casks/") else version
         for name in package.asset_names(url_version):
             fields = [
                 f'    url "https://github.com/{package.repository}/releases/download/v{url_version}/{name}"',

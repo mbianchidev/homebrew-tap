@@ -4,12 +4,12 @@ cask "denote" do
   on_arm do
     sha256 "9ab426f1f341b4aeb29f2b406588b073c83293f795e93302f6f473fadfbec1a3"
 
-    url "https://github.com/mbianchidev/denote/releases/download/v0.14.0/Denote_0.14.0_aarch64.dmg"
+    url "https://github.com/mbianchidev/denote/releases/download/v#{version}/Denote_#{version}_aarch64.dmg"
   end
   on_intel do
     sha256 "555337fb34f7e109a1a4ae6b45264c3b0e68c0a5a1d833242f519c9a54c2ca3e"
 
-    url "https://github.com/mbianchidev/denote/releases/download/v0.14.0/Denote_0.14.0_x64.dmg"
+    url "https://github.com/mbianchidev/denote/releases/download/v#{version}/Denote_#{version}_x64.dmg"
   end
 
   name "Denote"
