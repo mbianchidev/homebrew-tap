@@ -1,3 +1,4 @@
+import base64
 import copy
 import hashlib
 import json
@@ -230,7 +231,7 @@ class ReleaseUpdateTests(unittest.TestCase):
             with mock.patch.object(UPDATES, "ROOT", root), \
                     mock.patch.object(UPDATES.sendbox, "api", return_value=release), \
                     mock.patch.object(UPDATES, "verify_release") as verify, \
-                    mock.patch.object(UPDATES, "publish_update") as publish, \
+                    mock.patch.object(UPDATES, "publish_updates") as publish, \
                     mock.patch.object(UPDATES, "git") as git:
                 UPDATES.main(["--package", package.name, "--dry-run"])
                 verify.assert_called_once_with(package, release)
@@ -242,10 +243,45 @@ class ReleaseUpdateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, \
                 mock.patch.object(UPDATES, "ROOT", Path(directory)), \
                 mock.patch.object(UPDATES.sendbox, "api") as api, \
-                mock.patch.object(UPDATES, "publish_update") as publish:
+                mock.patch.object(UPDATES, "publish_updates") as publish:
             UPDATES.main(["--dry-run"])
             api.assert_not_called()
             publish.assert_not_called()
+
+    def test_hosted_publication_collects_all_pending_packages_before_one_publish(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            releases = {}
+            for package in UPDATES.PACKAGES.values():
+                path = root / package.path
+                path.parent.mkdir(exist_ok=True)
+                path.write_text(mock_definition(package))
+                releases[f"repos/{package.repository}/releases/latest"] = mock_release(package)[0]
+            with mock.patch.object(UPDATES, "ROOT", root), \
+                    mock.patch.object(UPDATES, "require_hosted_main"), \
+                    mock.patch.object(UPDATES, "retire_updates"), \
+                    mock.patch.object(UPDATES, "git", return_value="a" * 40), \
+                    mock.patch.object(UPDATES.sendbox, "api", side_effect=releases.__getitem__), \
+                    mock.patch.object(UPDATES, "publish_updates") as publish:
+                UPDATES.main([])
+                publish.assert_called_once()
+                updates, base = publish.call_args.args
+                self.assertEqual(base, "a" * 40)
+                self.assertEqual({package.name for package, _, _ in updates}, set(UPDATES.PACKAGES))
+
+    def test_publication_rejects_single_package_mode_and_merge_requires_hosted_main(self):
+        with mock.patch.object(UPDATES, "require_hosted_main"), \
+                mock.patch.object(UPDATES, "publish_updates") as publish, \
+                mock.patch.object(UPDATES, "retire_updates") as retire, \
+                self.assertRaisesRegex(ValueError, "batch"):
+            UPDATES.main(["--package", "killswitch"])
+        publish.assert_not_called()
+        retire.assert_not_called()
+        with mock.patch.object(UPDATES, "require_hosted_main", side_effect=ValueError("Mock non-hosted")), \
+                mock.patch.object(UPDATES, "merge_update") as merge, \
+                self.assertRaisesRegex(ValueError, "non-hosted"):
+            UPDATES.main(["--merge-run", "123", "--dry-run"])
+        merge.assert_not_called()
 
 
 class PublishingTests(unittest.TestCase):
@@ -267,16 +303,18 @@ class PublishingTests(unittest.TestCase):
         self.command("git", "-C", self.checkout, "config", "user.email", "mock@example.invalid")
         self.command("git", "-C", self.checkout, "config", "core.hooksPath", os.devnull)
         self.package = UPDATES.PACKAGES["killswitch"]
-        path = self.checkout / self.package.path
-        path.parent.mkdir()
-        path.write_text(mock_definition(self.package))
+        for package in UPDATES.PACKAGES.values():
+            path = self.checkout / package.path
+            path.parent.mkdir(exist_ok=True)
+            path.write_text(mock_definition(package))
         self.command("git", "-C", self.checkout, "add", ".")
         self.command("git", "-C", self.checkout, "commit", "--no-gpg-sign", "-m", "Mock base")
         self.command("git", "-C", self.checkout, "remote", "add", "origin", self.remote)
         self.command("git", "-C", self.checkout, "push", "origin", "main")
         self.base = self.command("git", "-C", self.checkout, "rev-parse", "HEAD")
         release, _ = mock_release(self.package)
-        self.version, self.updated = UPDATES.prepare_update(self.package, path.read_text(), release)
+        original = (self.checkout / self.package.path).read_text()
+        self.version, self.updated = UPDATES.prepare_update(self.package, original, release)
         self.release = release
         self.pull_requests = []
         self.workflow_runs = []
@@ -304,8 +342,9 @@ class PublishingTests(unittest.TestCase):
             return json.dumps(self.pull_requests)
         if arguments[:3] == ("gh", "pr", "create"):
             self.pull_requests.append({
+                "number": 1,
                 "url": "https://example.invalid/mock/pr/1",
-                "state": "OPEN", "isDraft": True,
+                "state": "OPEN", "isDraft": False,
                 "headRefOid": self.command("git", "-C", self.checkout, "rev-parse", "HEAD"),
             })
             return self.pull_requests[-1]["url"]
@@ -316,13 +355,13 @@ class PublishingTests(unittest.TestCase):
         self.fail(f"Unexpected command: {arguments}")
 
     def publish(self):
-        return UPDATES.publish_update(self.package, self.release, self.updated, self.base)
+        return UPDATES.publish_updates([(self.package, self.release, self.updated)], self.base)
 
-    def test_creates_one_scoped_draft_and_explicitly_dispatches_full_ci(self):
+    def test_creates_one_scoped_ready_pr_and_explicitly_dispatches_full_ci(self):
         self.publish()
         creates = [call for call in self.calls if call[:3] == ("gh", "pr", "create")]
         self.assertEqual(len(creates), 1)
-        self.assertIn("--draft", creates[0])
+        self.assertNotIn("--draft", creates[0])
         self.assertTrue(any(call[:4] == ("gh", "workflow", "run", "ci.yml") for call in self.calls))
         files = self.command("git", "-C", self.checkout, "diff", "--name-only", self.base, "HEAD")
         self.assertEqual(files, self.package.path)
@@ -331,6 +370,50 @@ class PublishingTests(unittest.TestCase):
         commits = [call for call in self.calls if "commit" in call]
         self.assertIn("--no-gpg-sign", commits[0])
         self.assertFalse(any("--force" in str(argument) for call in self.calls for argument in call))
+
+    def test_batches_simultaneous_releases_into_one_pr_and_one_ci_run(self):
+        package = UPDATES.PACKAGES["sendbox"]
+        release, _ = mock_release(package)
+        original = (self.checkout / package.path).read_text()
+        _, updated = UPDATES.prepare_update(package, original, release)
+        UPDATES.publish_updates([
+            (self.package, self.release, self.updated), (package, release, updated),
+        ], self.base)
+        self.assertEqual(len(self.pull_requests), 1)
+        files = self.command("git", "-C", self.checkout, "diff", "--name-only", self.base, "HEAD")
+        self.assertEqual(files.splitlines(), sorted([self.package.path, package.path]))
+        dispatches = [call for call in self.calls if call[:4] == ("gh", "workflow", "run", "ci.yml")]
+        self.assertEqual(len(dispatches), 1)
+        self.assertEqual(UPDATES.verify_release.call_count, 2)
+
+    def test_batch_identity_is_order_independent_and_binds_base_and_definition_bytes(self):
+        package = UPDATES.PACKAGES["sendbox"]
+        release, _ = mock_release(package)
+        _, updated = UPDATES.prepare_update(
+            package, (self.checkout / package.path).read_text(), release,
+        )
+        updates = [(self.package, self.release, self.updated), (package, release, updated)]
+        branch = UPDATES.update_branch(updates, self.base)
+        self.assertEqual(branch, UPDATES.update_branch(list(reversed(updates)), self.base))
+        self.assertNotEqual(branch, UPDATES.update_branch(updates, "b" * 40))
+        self.assertNotEqual(
+            branch, UPDATES.update_branch([(self.package, self.release, self.updated + "\n")], self.base),
+        )
+
+    def test_every_candidate_is_verified_before_any_batch_files_are_written(self):
+        package = UPDATES.PACKAGES["sendbox"]
+        release, _ = mock_release(package)
+        original = (self.checkout / package.path).read_text()
+        _, updated = UPDATES.prepare_update(package, original, release)
+        with mock.patch.object(
+            UPDATES, "verify_release", side_effect=[None, ValueError("Mock second artifact mismatch")],
+        ), self.assertRaisesRegex(ValueError, "second artifact"):
+            UPDATES.publish_updates([
+                (self.package, self.release, self.updated), (package, release, updated),
+            ], self.base)
+        self.assertEqual(self.command("git", "-C", self.checkout, "status", "--porcelain"), "")
+        self.assertFalse(any("push" in call or "commit" in call for call in self.calls))
+        self.assertEqual(self.pull_requests, [])
 
     def test_existing_open_pr_recovers_missing_ci_without_duplicate_or_rewrite(self):
         self.publish()
@@ -347,6 +430,12 @@ class PublishingTests(unittest.TestCase):
                 self.pull_requests = [{"state": state, "url": "https://example.invalid/mock/pr/1"}]
                 self.publish()
                 self.assertEqual(len(self.calls), 1)
+
+    def test_duplicate_pr_identity_is_rejected_without_writes(self):
+        self.pull_requests = [{"state": "OPEN"}, {"state": "OPEN"}]
+        with self.assertRaisesRegex(ValueError, "Multiple PRs"):
+            self.publish()
+        self.assertFalse(any("commit" in call or "push" in call for call in self.calls))
 
     def test_verification_failure_cannot_push_a_branch_or_create_a_pr(self):
         with mock.patch.object(UPDATES, "verify_release", side_effect=ValueError("Mock digest mismatch")), \
@@ -379,6 +468,7 @@ class PublishingTests(unittest.TestCase):
         head = self.pull_requests[0]["headRefOid"]
         for status, conclusion in (("in_progress", ""), ("completed", "success"), ("completed", "failure")):
             self.workflow_runs = [{
+                "databaseId": 123,
                 "headSha": head, "event": "workflow_dispatch", "status": status,
                 "conclusion": conclusion, "url": "https://example.invalid/mock/run/1",
             }]
@@ -388,8 +478,435 @@ class PublishingTests(unittest.TestCase):
                     self.publish()
             else:
                 self.publish()
-            self.assertFalse(any(call[:3] == ("gh", "workflow", "run") for call in self.calls))
+            self.assertFalse(any(call[:4] == ("gh", "workflow", "run", "ci.yml") for call in self.calls))
+            merges = [
+                call for call in self.calls
+                if call[:4] == ("gh", "workflow", "run", "merge-package-updates.yml")
+            ]
+            self.assertEqual(len(merges), 1 if conclusion == "success" else 0)
 
+
+class AutomaticMergeTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="mock-package-merge-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.base = "a" * 40
+        self.head = "b" * 40
+        self.package = UPDATES.PACKAGES["killswitch"]
+        self.release, _ = mock_release(self.package)
+        self.responses = {}
+        self.prefix = f"repos/{UPDATES.REPOSITORY}"
+        for package in UPDATES.PACKAGES.values():
+            path = self.root / package.path
+            path.parent.mkdir(exist_ok=True)
+            path.write_text(mock_definition(package))
+            release, _ = mock_release(package, "1.2.3")
+            self.responses[f"repos/{package.repository}/releases/latest"] = release
+        original = (self.root / self.package.path).read_text()
+        _, self.updated = UPDATES.prepare_update(self.package, original, self.release)
+        self.branch = UPDATES.update_branch([(self.package, self.release, self.updated)], self.base)
+        self.responses[f"repos/{self.package.repository}/releases/latest"] = self.release
+        self.responses[f"{self.prefix}/actions/runs/123"] = {
+            "id": 123, "path": ".github/workflows/ci.yml", "event": "workflow_dispatch",
+            "status": "completed", "conclusion": "success",
+            "head_sha": self.head, "head_branch": self.branch,
+            "head_repository": {"full_name": UPDATES.REPOSITORY},
+        }
+        self.pull = {
+            "number": 1, "state": "open", "draft": False, "changed_files": 1,
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "head": {"sha": self.head, "ref": self.branch, "repo": {"full_name": UPDATES.REPOSITORY}},
+            "base": {"sha": self.base, "ref": "main", "repo": {"full_name": UPDATES.REPOSITORY}},
+        }
+        self.responses[f"{self.prefix}/pulls/1"] = self.pull
+        self.responses[f"{self.prefix}/pulls/1/files?per_page=100"] = [
+            {"filename": self.package.path, "status": "modified"},
+        ]
+        self.responses[f"{self.prefix}/commits/main"] = {"sha": self.base}
+        self.responses[f"{self.prefix}/compare/{self.base}...{self.head}"] = {
+            "merge_base_commit": {"sha": self.base}, "total_commits": 1, "status": "ahead",
+        }
+        self.responses[f"{self.prefix}/contents/{self.package.path}?ref={self.head}"] = {
+            "encoding": "base64", "content": base64.b64encode(self.updated.encode()).decode(),
+        }
+        names = ["validate"] + [
+            f"Package lifecycle ({runner})"
+            for runner in ("macos-15-intel", "macos-latest", "ubuntu-latest", "ubuntu-24.04-arm")
+        ]
+        jobs = [
+            {"name": name, "status": "completed", "conclusion": "success"} for name in names
+        ]
+        self.responses[f"{self.prefix}/actions/runs/123/jobs?per_page=100"] = {
+            "total_count": len(jobs), "jobs": jobs,
+        }
+        self.responses[f"{self.prefix}/commits/{self.head}/check-runs?per_page=100"] = {
+            "total_count": len(jobs), "check_runs": copy.deepcopy(jobs),
+        }
+        self.responses[f"{self.prefix}/commits/{self.head}/status"] = {
+            "total_count": 0, "state": "pending", "statuses": [],
+        }
+        self.reviews = {
+            "reviewThreads": {"nodes": [], "pageInfo": {"hasNextPage": False}},
+            "reviews": {"nodes": [], "pageInfo": {"hasNextPage": False}},
+        }
+        self.commands = []
+        self.pull_reads = 0
+        self.advance_head = False
+        for patcher in (
+            mock.patch.object(UPDATES, "ROOT", self.root),
+            mock.patch.object(UPDATES, "git", return_value=self.base),
+            mock.patch.object(UPDATES.sendbox, "api", side_effect=self.api),
+            mock.patch.object(UPDATES, "run", side_effect=self.run_command),
+            mock.patch.object(UPDATES, "verify_release"),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def api(self, path):
+        self.assertIn(path, self.responses)
+        if path == f"{self.prefix}/pulls/1":
+            self.pull_reads += 1
+            if self.advance_head and self.pull_reads > 1:
+                changed = copy.deepcopy(self.pull)
+                changed["head"]["sha"] = "c" * 40
+                return changed
+        return copy.deepcopy(self.responses[path])
+
+    def run_command(self, *arguments, **kwargs):
+        self.commands.append(arguments)
+        if arguments[:3] == ("gh", "pr", "list"):
+            return json.dumps([{"number": 1}])
+        if arguments[:3] == ("gh", "api", "graphql"):
+            return json.dumps({"data": {"repository": {"pullRequest": self.reviews}}})
+        if arguments[:4] == ("gh", "api", "--method", "PUT"):
+            return json.dumps({"merged": True, "sha": "c" * 40})
+        if arguments[:3] == ("gh", "workflow", "run"):
+            return ""
+        self.fail(f"Unexpected command: {arguments}")
+
+    def assert_no_merge(self):
+        self.assertFalse(any(call[:4] == ("gh", "api", "--method", "PUT") for call in self.commands))
+
+    def test_merges_verified_bot_release_only_after_all_native_jobs_and_reviews_pass(self):
+        UPDATES.merge_update(123)
+        merge = [call for call in self.commands if call[:4] == ("gh", "api", "--method", "PUT")]
+        self.assertEqual(len(merge), 1)
+        self.assertIn(f"sha={self.head}", merge[0])
+        self.assertIn("merge_method=squash", merge[0])
+        UPDATES.verify_release.assert_called_once_with(self.package, self.release)
+        self.assertIn(("gh", "workflow", "run", "ci.yml", "--repo", UPDATES.REPOSITORY, "--ref", "main"),
+                      self.commands)
+
+    def test_merge_dry_run_verifies_without_merge_or_workflow_dispatch(self):
+        UPDATES.merge_update(123, dry_run=True)
+        self.assert_no_merge()
+        self.assertFalse(any(call[:3] == ("gh", "workflow", "run") for call in self.commands))
+        UPDATES.verify_release.assert_called_once()
+
+    def test_simultaneous_updates_for_all_registered_packages_merge_as_one_batch(self):
+        updates = []
+        for package in UPDATES.PACKAGES.values():
+            release, _ = mock_release(package)
+            _, updated = UPDATES.prepare_update(
+                package, (self.root / package.path).read_text(), release,
+            )
+            updates.append((package, release, updated))
+            self.responses[f"repos/{package.repository}/releases/latest"] = release
+            self.responses[f"{self.prefix}/contents/{package.path}?ref={self.head}"] = {
+                "encoding": "base64", "content": base64.b64encode(updated.encode()).decode(),
+            }
+        self.branch = UPDATES.update_branch(updates, self.base)
+        self.responses[f"{self.prefix}/actions/runs/123"]["head_branch"] = self.branch
+        self.pull["head"]["ref"] = self.branch
+        self.pull["changed_files"] = len(updates)
+        self.responses[f"{self.prefix}/pulls/1/files?per_page=100"] = [
+            {"filename": package.path, "status": "modified"} for package, _, _ in updates
+        ]
+        UPDATES.merge_update(123)
+        self.assertEqual(UPDATES.verify_release.call_count, len(UPDATES.PACKAGES))
+        self.assertEqual(sum(call[:4] == ("gh", "api", "--method", "PUT") for call in self.commands), 1)
+
+    def test_rejects_wrong_run_repository_event_revision_branch_or_result(self):
+        run = self.responses[f"{self.prefix}/actions/runs/123"]
+        for change in (
+            {"head_repository": {"full_name": "mock/unrelated"}},
+            {"event": "pull_request"}, {"path": ".github/workflows/mock.yml"},
+            {"head_branch": "feature/mock"}, {"head_sha": "not-a-commit"},
+            {"status": "in_progress"}, {"conclusion": "failure"},
+        ):
+            with self.subTest(change=change), mock.patch.dict(run, change), self.assertRaises(ValueError):
+                UPDATES.merge_update(123)
+            self.assert_no_merge()
+
+    def test_rejects_draft_foreign_nonbot_or_changed_head_pr(self):
+        for change in (
+            {"draft": True}, {"user": {"login": "mock-maintainer", "type": "User"}},
+            {"head": self.pull["head"] | {"sha": "c" * 40}},
+            {"head": self.pull["head"] | {"repo": {"full_name": "mock/unrelated"}}},
+            {"base": self.pull["base"] | {"ref": "feature/mock"}},
+        ):
+            with self.subTest(change=change), mock.patch.dict(self.pull, change), self.assertRaises(ValueError):
+                UPDATES.merge_update(123)
+            self.assert_no_merge()
+
+    def test_rejects_changed_main_or_stale_ci_integration_base(self):
+        for path, change in (
+            (f"{self.prefix}/commits/main", {"sha": "c" * 40}),
+            (f"{self.prefix}/compare/{self.base}...{self.head}",
+             {"merge_base_commit": {"sha": "c" * 40}}),
+        ):
+            with self.subTest(path=path), mock.patch.dict(self.responses[path], change), \
+                    self.assertRaises(ValueError):
+                UPDATES.merge_update(123)
+            self.assert_no_merge()
+
+    def test_rejects_non_release_changes_missing_files_and_extra_paths(self):
+        path = f"{self.prefix}/pulls/1/files?per_page=100"
+        for files in (
+            [], [{"filename": "scripts/ci/mock.py", "status": "modified"}],
+            [{"filename": self.package.path, "status": "removed"}],
+        ):
+            with self.subTest(files=files), mock.patch.dict(self.responses, {path: files}), \
+                    self.assertRaises(ValueError):
+                UPDATES.merge_update(123)
+            self.assert_no_merge()
+        content = self.responses[f"{self.prefix}/contents/{self.package.path}?ref={self.head}"]
+        changed = self.updated.replace('skip_clean "libexec"', 'skip_clean "bin"')
+        with mock.patch.dict(content, {"content": base64.b64encode(changed.encode()).decode()}), \
+                self.assertRaises(ValueError):
+            UPDATES.merge_update(123)
+        self.assert_no_merge()
+
+    def test_rejects_stale_changed_or_unchanged_package_release(self):
+        for package in (self.package, UPDATES.PACKAGES["sendbox"]):
+            release, _ = mock_release(package, "10.0.0")
+            with self.subTest(package=package.name), mock.patch.dict(
+                self.responses, {f"repos/{package.repository}/releases/latest": release},
+            ), self.assertRaises(ValueError):
+                UPDATES.merge_update(123)
+            self.assert_no_merge()
+
+    def test_missing_failed_cancelled_or_pending_native_coverage_cannot_merge(self):
+        data = self.responses[f"{self.prefix}/actions/runs/123/jobs?per_page=100"]
+        for index in range(len(data["jobs"])):
+            for conclusion in ("failure", "cancelled", "skipped", None):
+                changed = copy.deepcopy(data)
+                changed["jobs"][index]["conclusion"] = conclusion
+                with self.subTest(index=index, conclusion=conclusion), mock.patch.dict(data, changed), \
+                        self.assertRaises(ValueError):
+                    UPDATES.merge_update(123)
+                self.assert_no_merge()
+        with mock.patch.dict(data, {"jobs": data["jobs"][:-1]}), self.assertRaises(ValueError):
+            UPDATES.merge_update(123)
+        self.assert_no_merge()
+
+    def test_pending_or_failed_other_head_checks_cannot_merge(self):
+        data = self.responses[f"{self.prefix}/commits/{self.head}/check-runs?per_page=100"]
+        for state, conclusion in (("in_progress", None), ("completed", "failure")):
+            check = {"name": "Mock additional check", "status": state, "conclusion": conclusion}
+            with mock.patch.dict(data, {
+                "total_count": 6, "check_runs": data["check_runs"] + [check],
+            }), self.assertRaises(ValueError):
+                UPDATES.merge_update(123)
+            self.assert_no_merge()
+        status = self.responses[f"{self.prefix}/commits/{self.head}/status"]
+        with mock.patch.dict(status, {"total_count": 1, "state": "failure"}), \
+                self.assertRaises(ValueError):
+            UPDATES.merge_update(123)
+        self.assert_no_merge()
+
+    def test_unresolved_threads_changes_requested_and_incomplete_review_data_block_merge(self):
+        changes = (
+            {"reviewThreads": {"nodes": [{"isResolved": False}], "pageInfo": {"hasNextPage": False}}},
+            {"reviews": {"nodes": [
+                {"state": "CHANGES_REQUESTED", "author": {"login": "mock-reviewer"}},
+            ], "pageInfo": {"hasNextPage": False}}},
+            {"reviews": {"nodes": [
+                {"state": "PENDING", "author": {"login": "mock-reviewer"}},
+            ], "pageInfo": {"hasNextPage": False}}},
+            {"reviews": {"nodes": [], "pageInfo": {"hasNextPage": True}}},
+        )
+        for change in changes:
+            with self.subTest(change=change), mock.patch.dict(self.reviews, change), \
+                    self.assertRaises(ValueError):
+                UPDATES.merge_update(123)
+            self.assert_no_merge()
+
+    def test_download_verification_failure_or_final_head_race_prevents_merge(self):
+        with mock.patch.object(UPDATES, "verify_release", side_effect=ValueError("Mock digest mismatch")), \
+                self.assertRaisesRegex(ValueError, "digest"):
+            UPDATES.merge_update(123)
+        self.assert_no_merge()
+        self.pull_reads = 0
+        self.advance_head = True
+        with self.assertRaises(ValueError):
+            UPDATES.merge_update(123)
+        self.assert_no_merge()
+
+    def test_release_publication_or_replacement_during_byte_verification_blocks_merge(self):
+        path = f"repos/{self.package.repository}/releases/latest"
+        for version in ("10.0.0", "9.8.7"):
+            replacement, _ = mock_release(self.package, version)
+            if version == "9.8.7":
+                replacement["assets"][0]["digest"] = f"sha256:{'0' * 64}"
+            with self.subTest(version=version), mock.patch.dict(self.responses), \
+                    mock.patch.object(
+                        UPDATES, "verify_release",
+                        side_effect=lambda *args: self.responses.update({path: replacement}),
+                    ), self.assertRaisesRegex(ValueError, "release changed"):
+                UPDATES.merge_update(123)
+            self.assert_no_merge()
+
+    def test_review_feedback_arriving_during_artifact_verification_blocks_merge(self):
+        def review_arrives(*arguments):
+            self.reviews["reviewThreads"]["nodes"] = [{"isResolved": False}]
+
+        with mock.patch.object(UPDATES, "verify_release", side_effect=review_arrives), \
+                self.assertRaisesRegex(ValueError, "Unresolved"):
+            UPDATES.merge_update(123)
+        self.assert_no_merge()
+
+    def test_current_head_check_changes_during_artifact_verification_block_merge(self):
+        def check_fails(*arguments):
+            data = self.responses[f"{self.prefix}/commits/{self.head}/check-runs?per_page=100"]
+            data["check_runs"][0]["conclusion"] = "failure"
+
+        with mock.patch.object(UPDATES, "verify_release", side_effect=check_fails), \
+                self.assertRaisesRegex(ValueError, "checks"):
+            UPDATES.merge_update(123)
+        self.assert_no_merge()
+
+    def test_resolved_review_request_and_later_approval_can_merge(self):
+        self.reviews["reviews"]["nodes"] = [
+            {"state": state, "author": {"login": "mock-reviewer"}}
+            for state in ("CHANGES_REQUESTED", "COMMENTED", "APPROVED")
+        ]
+        UPDATES.merge_update(123)
+        self.assertTrue(any(call[:4] == ("gh", "api", "--method", "PUT") for call in self.commands))
+
+    def test_github_merge_refusal_is_an_error_and_cannot_dispatch_post_merge_ci(self):
+        def refused(*arguments, **kwargs):
+            if arguments[:4] == ("gh", "api", "--method", "PUT"):
+                return json.dumps({"merged": False, "message": "Mock merge restriction"})
+            return self.run_command(*arguments, **kwargs)
+
+        with mock.patch.object(UPDATES, "run", side_effect=refused), \
+                self.assertRaisesRegex(ValueError, "Mock merge restriction"):
+            UPDATES.merge_update(123)
+        self.assertFalse(any(call[:3] == ("gh", "workflow", "run") for call in self.commands))
+
+
+class RetirementTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="mock-update-retirement-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.package = UPDATES.PACKAGES["killswitch"]
+        self.original = mock_definition(self.package)
+        self.release, _ = mock_release(self.package, "1.2.4")
+        _, self.candidate = UPDATES.prepare_update(self.package, self.original, self.release)
+        main_release, _ = mock_release(self.package, "1.2.5")
+        path = self.root / self.package.path
+        path.parent.mkdir()
+        path.write_text(UPDATES.prepare_update(self.package, self.original, main_release)[1])
+        self.head, self.base, self.main = "b" * 40, "c" * 40, "a" * 40
+        self.prefix = f"repos/{UPDATES.REPOSITORY}"
+        self.pull = {
+            "number": 1, "state": "open",
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "head": {
+                "sha": self.head, "ref": "automation/killswitch-v1.2.4",
+                "repo": {"full_name": UPDATES.REPOSITORY},
+            },
+        }
+        self.pages = [[self.pull]]
+        self.responses = {
+            f"{self.prefix}/pulls/1": copy.deepcopy(self.pull),
+            f"{self.prefix}/pulls/1/files?per_page=100": [
+                {"filename": self.package.path, "status": "modified"},
+            ],
+            f"{self.prefix}/contents/{self.package.path}?ref={self.head}": {
+                "encoding": "base64", "content": base64.b64encode(self.candidate.encode()).decode(),
+            },
+            f"{self.prefix}/contents/{self.package.path}?ref={self.base}": {
+                "encoding": "base64", "content": base64.b64encode(self.original.encode()).decode(),
+            },
+            f"{self.prefix}/compare/main...{self.head}": {"merge_base_commit": {"sha": self.base}},
+            f"{self.prefix}/commits/main": {"sha": self.main},
+            f"repos/{self.package.repository}/releases/tags/v1.2.4": self.release,
+        }
+        self.commands = []
+        for patcher in (
+            mock.patch.object(UPDATES, "ROOT", self.root),
+            mock.patch.object(UPDATES, "git", return_value=self.main),
+            mock.patch.object(UPDATES.sendbox, "api", side_effect=self.responses.__getitem__),
+            mock.patch.object(UPDATES, "run", side_effect=self.run_command),
+            mock.patch.object(UPDATES, "check_reviews"),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def run_command(self, *arguments, **kwargs):
+        self.commands.append(arguments)
+        if arguments[:4] == ("gh", "api", "--paginate", "--slurp"):
+            return json.dumps(self.pages)
+        if arguments[:3] == ("gh", "pr", "close"):
+            return ""
+        self.fail(f"Unexpected command: {arguments}")
+
+    def assert_no_close(self):
+        self.assertFalse(any(call[:3] == ("gh", "pr", "close") for call in self.commands))
+
+    def test_closes_only_verified_superseded_bot_update_without_merging_or_deleting_branch(self):
+        UPDATES.retire_updates()
+        closes = [call for call in self.commands if call[:3] == ("gh", "pr", "close")]
+        self.assertEqual(len(closes), 1)
+        self.assertEqual(closes[0][3], "1")
+        self.assertFalse(any("merge" in call or "--delete-branch" in call for call in self.commands))
+        UPDATES.check_reviews.assert_called_once_with(1)
+
+    def test_preserves_updates_not_yet_in_main(self):
+        (self.root / self.package.path).write_text(self.original)
+        UPDATES.retire_updates()
+        self.assert_no_close()
+
+    def test_preserves_foreign_nonbot_and_modified_update_prs(self):
+        for change in (
+            {"user": {"login": "mock-maintainer", "type": "User"}},
+            {"head": self.pull["head"] | {"repo": {"full_name": "mock/unrelated"}}},
+        ):
+            with self.subTest(change=change), mock.patch.dict(self.pull, change):
+                UPDATES.retire_updates()
+            self.assert_no_close()
+        content = self.responses[f"{self.prefix}/contents/{self.package.path}?ref={self.head}"]
+        candidate = self.candidate.replace('skip_clean "libexec"', 'skip_clean "bin"')
+        content["content"] = base64.b64encode(candidate.encode()).decode()
+        UPDATES.retire_updates()
+        self.assert_no_close()
+
+    def test_preserves_changed_head_or_main_and_unresolved_review_feedback(self):
+        for path, change in (
+            (f"{self.prefix}/pulls/1", {"head": self.pull["head"] | {"sha": "d" * 40}}),
+            (f"{self.prefix}/commits/main", {"sha": "d" * 40}),
+        ):
+            with self.subTest(path=path), mock.patch.dict(self.responses[path], change):
+                UPDATES.retire_updates()
+            self.assert_no_close()
+        with mock.patch.object(UPDATES, "check_reviews", side_effect=ValueError("Mock unresolved review")):
+            UPDATES.retire_updates()
+        self.assert_no_close()
+
+    def test_reads_all_pages_and_recognizes_verified_batch_updates(self):
+        unrelated = copy.deepcopy(self.pull)
+        unrelated["head"]["ref"] = "feature/mock"
+        self.pull["head"]["ref"] = UPDATES.update_branch([
+            (self.package, self.release, self.candidate),
+        ], self.base)
+        self.responses[f"{self.prefix}/pulls/1"]["head"]["ref"] = self.pull["head"]["ref"]
+        self.pages = [[unrelated], [self.pull]]
+        UPDATES.retire_updates()
+        self.assertEqual(sum(call[:3] == ("gh", "pr", "close") for call in self.commands), 1)
 
 if __name__ == "__main__":
     unittest.main()

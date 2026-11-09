@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify Sendbox packaging on disposable runners and prepare stable update PRs."""
+"""Verify Sendbox packaging on disposable runners."""
 
 import hashlib
 import json
@@ -312,61 +312,14 @@ def lifecycle(formula):
         summary.write(message + "\n")
 
 
-def open_pr():
-    branch = os.environ["GITHUB_REF_NAME"]
-    if os.environ["GITHUB_EVENT_NAME"] != "push" or os.environ["GITHUB_REF"] != f"refs/heads/{branch}":
-        raise ValueError("Automated draft PR creation requires a branch push.")
-    repository = os.environ["GITHUB_REPOSITORY"]
-    if repository != "mbianchidev/homebrew-tap":
-        raise ValueError("Unexpected repository for Sendbox tap automation.")
-    paths = run("git", "diff", "--name-only", "origin/main...HEAD", capture=True).splitlines()
-    base = run("git", "show", "origin/main:Formula/sendbox.rb", capture=True)
-    head = Path("Formula/sendbox.rb").read_text().strip()
-    version = validate_update(base, head, branch, paths)
-    latest = api(f"repos/{REPOSITORY}/releases/latest")
-    release_digests(latest)
-    if latest["tag_name"] != f"v{version}":
-        raise ValueError("Only the latest published stable Sendbox release may open an update PR.")
-    if formula_fields(head)[1] != release_digests(latest):
-        raise ValueError("The update formula does not match the published GitHub asset digests.")
-    existing = json.loads(run(
-        "gh", "pr", "list", "--repo", repository, "--head", branch, "--base", "main",
-        "--state", "all", "--json", "url,state,isDraft", capture=True,
-    ))
-    if existing:
-        for pull_request in existing:
-            print(f'Existing {pull_request["state"]} PR: {pull_request["url"]}; not creating a duplicate.')
-        return
-    result = subprocess.run([
-        "gh", "pr", "create", "--repo", repository, "--head", branch, "--base", "main",
-        "--draft", "--title", f"sendbox {version}",
-        "--body", (
-            f"Update only Formula/sendbox.rb to the verified stable Sendbox v{version} artifacts.\n\n"
-            "Tap validation and isolated package lifecycle checks passed on this branch. "
-            "This is a draft for human review; no merge or publication is automatic."
-        ),
-    ], check=False)
-    if result.returncode:
-        print(
-            "::error::Draft PR creation failed. In this tap's Settings > Actions > General > "
-            "Workflow permissions, enable 'Allow GitHub Actions to create and approve pull requests', "
-            "or create the draft manually from the validated automation branch. "
-            "No repository settings were changed.",
-            file=sys.stderr,
-        )
-        raise SystemExit(result.returncode)
-
-
 def main():
     hosted_runner = os.environ.get("TAP_CI_RUNNER_ENVIRONMENT")
     if os.environ.get("GITHUB_ACTIONS") != "true" or hosted_runner != "github-hosted":
         raise ValueError(f"These operations require a GitHub-hosted runner; received {hosted_runner!r}.")
-    if sys.argv[1:] == ["open-pr"]:
-        open_pr()
-    elif len(sys.argv) == 3 and sys.argv[1] == "lifecycle":
+    if len(sys.argv) == 3 and sys.argv[1] == "lifecycle":
         lifecycle(Path(sys.argv[2]))
     else:
-        raise ValueError("Usage: sendbox.py lifecycle FORMULA | open-pr")
+        raise ValueError("Usage: sendbox.py lifecycle FORMULA")
 
 
 if __name__ == "__main__":
