@@ -161,6 +161,7 @@ packages.each do |path|
   if path.start_with?("#{root}/Formula/")
     next unless compatible?(:formula, qualified)
 
+    run!("python3", "-m", "scripts.ci.package_updates", "--prefetch", token) unless token == "sendbox"
     if token == "sendbox"
       run!("python3", "#{root}/scripts/ci/sendbox.py", "lifecycle", path)
     else
@@ -176,6 +177,7 @@ packages.each do |path|
   elsif RUBY_PLATFORM.include?("darwin")
     next unless compatible?(:cask, qualified)
 
+    run!("python3", "-m", "scripts.ci.package_updates", "--prefetch", token)
     if token == "killswitch"
       # An unrelated core VPN formula shares this explicitly qualified cask's token.
       run!("brew", "audit", "--cask", "--strict", "--online", "--except=token_conflicts", qualified)
@@ -183,13 +185,21 @@ packages.each do |path|
       next
     end
 
+    run!("brew", "audit", "--cask", "--strict", "--online", qualified)
     sentinel = File.join(ENV.fetch("HOME"), "Library", "Application Support", token, "tap-ci-retained.txt")
     abort "Refusing to overwrite existing cask fixture #{sentinel}." if File.exist?(sentinel)
     FileUtils.mkdir_p(File.dirname(sentinel))
     File.write(sentinel, "mock application data\n")
-    run!("brew", "install", "--cask", qualified)
-    abort "Cask was not installed: #{qualified}" if capture!("brew", "list", "--cask", "--versions", qualified).empty?
-    run!("brew", "uninstall", "--cask", qualified)
+    installed = false
+    begin
+      run!("brew", "install", "--cask", qualified)
+      installed = true
+      metadata = JSON.parse(capture!("brew", "info", "--json=v2", "--cask", qualified)).fetch("casks").first
+      abort "Installed cask/version mismatch: #{qualified}" unless
+        metadata.fetch("token") == token && metadata["installed"] == metadata.fetch("version")
+    ensure
+      run!("brew", "uninstall", "--cask", qualified) if installed
+    end
     abort "Uninstall removed cask user data: #{qualified}" unless File.read(sentinel) == "mock application data\n"
     FileUtils.rm_f(sentinel)
     summary("Passed #{qualified}: cask install, artifact listing, uninstall, data preservation; no app launched.")

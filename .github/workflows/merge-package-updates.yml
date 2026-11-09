@@ -1,0 +1,74 @@
+name: Merge verified package updates
+
+on:
+  workflow_run:
+    workflows: [Packages]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: Successful native package workflow run covering the update branch
+        required: true
+        type: string
+      dry-run:
+        description: Verify the update without merging or dispatching post-merge CI
+        type: boolean
+        default: true
+
+concurrency:
+  group: package-update-merges
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  merge:
+    if: >-
+      github.repository == 'mbianchidev/homebrew-tap' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.event == 'workflow_dispatch' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        startsWith(github.event.workflow_run.head_branch, 'automation/package-updates-') &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      attestations: read
+      checks: read
+      statuses: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PYTHONDONTWRITEBYTECODE: "1"
+      MERGE_RUN_ID: ${{ github.event.workflow_run.id || inputs.run-id }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # This write-enabled job must never check out the candidate PR or its artifacts.
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Preload verified pinned Python through the release asset API
+        env:
+          TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash scripts/ci/setup-python.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.1"
+
+      - name: Reverify release-only changes, native CI and reviews before merging
+        env:
+          TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          if [[ "$DRY_RUN" == true ]]; then
+            python3 -m scripts.ci.package_updates --merge-run "$MERGE_RUN_ID" --dry-run
+          else
+            python3 -m scripts.ci.package_updates --merge-run "$MERGE_RUN_ID"
+          fi

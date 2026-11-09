@@ -2,7 +2,7 @@ name: Packages
 
 on:
   push:
-    branches: [main, "automation/sendbox-v*"]
+    branches: [main]
     paths: ["Formula/**", "Casks/**", "scripts/ci/**", "tests/**", ".github/workflows/**"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -28,7 +28,6 @@ env:
 
 jobs:
   validate:
-    if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'automation/sendbox-v')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -37,6 +36,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+
+      - name: Preload verified pinned Python through the release asset API
+        env:
+          TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash scripts/ci/setup-python.sh
 
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -144,6 +148,11 @@ jobs:
         with:
           stable: true
 
+      - name: Preload verified pinned Python through the release asset API
+        env:
+          TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash scripts/ci/setup-python.sh
+
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -168,32 +177,3 @@ jobs:
         env:
           TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: ruby scripts/ci/test-packages.rb
-
-  create-sendbox-update-pr:
-    name: Prepare stable Sendbox draft PR
-    needs: [validate, install]
-    if: >-
-      github.event_name == 'push' &&
-      startsWith(github.ref, 'refs/heads/automation/sendbox-v') &&
-      needs.install.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.15.1"
-
-      - name: Guard stable branch and open one draft for human review
-        env:
-          TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
-        run: |
-          python3 scripts/ci/sendbox.py open-pr

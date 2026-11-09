@@ -7,11 +7,12 @@
 | Path | Purpose |
 | --- | --- |
 | [`Formula/`](../Formula) | Sendbox and sql-not-so-lite package definitions |
-| [`Casks/`](../Casks) | KillSwitch app and bundled CLI artifacts |
+| [`Casks/`](../Casks) | KillSwitch, Porto and Denote desktop apps |
 | [`scripts/ci/`](../scripts/ci) | Package lifecycle checks and verified release updates |
 | [`tests/`](../tests) | Mock-data regression tests |
 | [Package workflow](../.github/workflows/ci.yml) | Definition checks and native lifecycle matrix |
-| [Update workflow](../.github/workflows/update-packages.yml) | Daily/manual stable-release detection and draft updates |
+| [Update workflow](../.github/workflows/update-packages.yml) | Hourly/manual verified stable-release update batches |
+| [Merge workflow](../.github/workflows/merge-package-updates.yml) | Trusted-main, CI-gated merges of release-only updates |
 
 The tap consumes upstream release artifacts; it does not build or publish the
 upstream applications. Keep their release tooling in their source repositories.
@@ -25,7 +26,8 @@ signed payload bytes and existing user data.
 
 Run the relevant checks below, update the package guide, and open a draft pull
 request for human review. Read and address CI failures and review feedback.
-Do not push updates directly to `main` or merge automatically.
+Do not push updates directly to `main` or merge implementation PRs automatically.
+Only the verified release-only automation described below merges without a human.
 
 Contributor responsibility, including AI-assisted work, is described in the
 [README policy](../README.md#ai-policy).
@@ -41,6 +43,20 @@ for regression tests, Sendbox lifecycle checks and both package-update workflows
 Use that interpreter as `python3` to match CI locally; Python 3.11+ remains supported
 for local checks. The Python tools use only the standard library, with no Python
 packages to install.
+Hosted jobs preload that exact interpreter through GitHub's release-asset API
+using pinned official archive IDs and SHA-256 digests, then let `setup-python`
+select the verified tool-cache entry. This avoids the browser download route's
+observed HTTP 504 failures without changing the interpreter or weakening checks.
+The bootstrap refuses non-hosted environments. Update its pinned asset map when
+changing Python or supported Ubuntu runner releases.
+Native CI also prepares Homebrew's own download-cache entry through GitHub's
+release API. The evaluated architecture-specific recipe URL, repository, tag,
+asset name, published byte size and GitHub SHA-256 must agree before verified
+bytes are stored atomically in that cache. Recipe URLs and checksums remain
+unchanged, and Homebrew still performs its normal fetch/install checks.
+This hosted-only transport avoids release-browser-route HTTP 504 failures;
+it never accepts a mirror, different asset, unchecked bytes or an invalid
+existing cache entry. Strict online homepage/release audits remain enabled.
 
 From the repository root:
 
@@ -132,11 +148,14 @@ full network isolation.
 
 ### Scheduled updates for all packages
 
-The **Package updates** workflow checks Sendbox, sql-not-so-lite and KillSwitch
-daily at **06:17 UTC**. It can also run manually from the Actions tab on `main`;
-manual runs default to a dry run. Clear the dry-run option to publish updates.
-Scheduled workflows become active only after the workflow is merged into the
-default branch.
+The **Package updates** workflow checks Sendbox, sql-not-so-lite, KillSwitch,
+Porto and Denote
+hourly at **17 minutes past the hour UTC**. It can also run manually from the
+Actions tab on `main`; manual runs default to a dry run. Clear the dry-run option
+to publish updates.
+Scheduled and merge workflows become active only after the implementation PR is
+merged into the default branch. GitHub schedules can be delayed; publication is
+not guaranteed to finish within an hour.
 
 For each newer stable `vX.Y.Z` release, the updater verifies every supported
 platform artifact against its GitHub SHA-256 digest and the adjacent published
@@ -144,13 +163,23 @@ checksum or checksum manifest. Sendbox archives also require the existing
 tag-bound release-workflow attestations. Missing platform artifacts, ambiguous
 assets, mismatched hashes and prereleases fail explicitly rather than producing
 partial package updates. No application, service, VM or agent is launched.
+Porto uses its `SHA256SUMS` manifest; Denote uses both macOS architecture
+manifests. Identical shared entries across separate manifests are accepted;
+duplicate entries within a manifest or conflicting shared digests fail.
+Both architecture-specific DMGs must be present and verified before a cask
+update is published.
 
-The updater changes only the version, release URLs where necessary and checksums
-in the affected definition. It pushes `automation/<package>-vX.Y.Z` and opens one
-**draft** pull request for human review. Existing matching branches and open PRs
-are reused, including recovery after interrupted PR creation or CI dispatch.
-Unexpected branch edits are not overwritten; closed or merged PRs are not
-duplicated. No update is pushed to `main`, and nothing is merged automatically.
+The updater changes only versions, versioned release URLs where necessary and
+checksums. All pending releases are verified before any definition is written and
+published together in one ready PR on `automation/package-updates-<digest>`.
+Batching prevents simultaneous releases from blocking each other's strict
+full-tap audits. An incomplete or invalid candidate fails the batch explicitly.
+The branch identity binds the exact main revision and definition bytes. Matching
+branches and PRs are reused after interrupted publication or CI dispatch; closed
+or merged PRs are not duplicated, and unexpected branch edits are never replaced
+or force-pushed. Old bot-generated, release-only PRs are closed without merging
+once their versions are already incorporated into `main`. Modified or unrelated
+PRs are preserved with an explicit warning.
 
 The workflow uses the repository-scoped `GITHUB_TOKEN`, not a new personal token
 or deploy key. Write permissions are limited to the update job. GitHub does not
@@ -158,7 +187,30 @@ run push CI for token-created commits, and token-created PR workflows can requir
 approval, so the updater explicitly dispatches the existing **Packages** workflow
 on the exact update branch. All native lifecycle checks and strict cask audits
 remain enabled. Existing failed current-head CI is reported for attention, not
-silently retried or accepted. Unrelated packages are checked independently.
+silently retried or accepted. The full tap keeps its Intel/ARM macOS and Linux
+lifecycle coverage.
+
+The **Merge verified package updates** workflow runs separately after successful
+native CI and uses only code from its trusted main-branch event revision. It
+never checks out PR code or consumes PR-produced executable artifacts with its
+write token. It requires one unchanged, ready, same-repository GitHub Actions bot
+PR whose single update commit is based on current `main`. Every candidate byte
+must match an independently reconstructed latest-stable update; artifacts,
+checksums and Sendbox's tag-bound attestations are reverified before merging.
+All five definition/native jobs must pass; additional head checks must be
+successful or report a completed neutral/no-work result. Unresolved threads,
+pending reviews or requested changes block the merge. The exact head SHA guards
+the squash merge. Main, the PR, release metadata, checks and reviews are rechecked
+immediately beforehand. GitHub enforces repository
+merge restrictions. No branch protection or repository-wide auto-merge setting
+is weakened or enabled.
+
+Token-created merges do not trigger normal push CI, so the merger explicitly
+dispatches full post-merge package CI on `main`. A successful existing update CI
+run can redispatch the trusted merger on the next hourly update check, allowing
+review/check completion or interrupted merge recovery without repeating native
+CI. Maintainers can also run the merge workflow manually on `main` with its
+successful native CI run ID; manual merge validation defaults to a dry run.
 
 Preview releases locally with authenticated `gh`, without editing definitions,
 creating branches or opening PRs:
@@ -174,28 +226,39 @@ checkout. Do not bypass that guard on a laptop. When adding a package or changin
 its upstream asset layout, update the package registry and mock-data tests in
 `scripts/ci/package_updates.py` and `tests/test_package_updates.py`.
 
-### Source-driven Sendbox updates
+### Upstream integration and permissions
 
-Sendbox stable-release automation verifies published artifacts in its source
-repository, changes only the formula's version and three checksums, and uses a
-dedicated tap-scoped SSH deploy key to push `automation/sendbox-vX.Y.Z`.
-This tap validates the branch before opening an idempotent draft pull request
-with its own `GITHUB_TOKEN`.
+This tap owns Homebrew publication for all registered upstream projects.
+Sendbox and sql-not-so-lite source workflows should publish release artifacts,
+not push competing formula branches or write directly to this tap's `main`.
+Their separate migration PRs remove those writers and tap-write credential
+requirements. Retire obsolete source-repository tap deploy keys only after this
+central automation and the upstream migration PRs are merged and verified.
+KillSwitch already publishes versioned artifacts without writing to the tap and
+needs no additional source-repository integration.
+Porto and Denote already publish versioned Intel/ARM DMGs and checksum manifests
+from their release workflows, so the central updater needs no new tap-write
+credentials or source-driven tap branches. Their separate macOS packaging PRs
+correct app sealing while preserving release checksums and provenance.
+Ad-hoc signatures are not Developer ID signing or notarization; casks retain
+quarantine and never re-sign downloaded apps or start runtimes.
 
-Only strict stable versions newer than v0.2.2 may be activated; the update must
+Only Sendbox stable versions newer than v0.2.2 may be activated; the update must
 advance the version and match the latest published stable release. This floor
 excludes releases affected by
 [RUSTSEC-2026-0382](https://rustsec.org/advisories/RUSTSEC-2026-0382.html) and
 [RUSTSEC-2026-0383](https://rustsec.org/advisories/RUSTSEC-2026-0383.html).
-Prereleases cannot replace the stable package. Existing pull requests, including
-closed ones, are not duplicated. Automation branches use push CI rather than
-duplicate pull-request runs. Humans review and merge.
+Prereleases cannot replace the stable package. Sendbox's three supported archives
+retain their checksum and tag-bound, GitHub-hosted-runner provenance checks.
 
-For automated draft creation, enable **Allow GitHub Actions to create and approve
+For automated PR creation, enable **Allow GitHub Actions to create and approve
 pull requests** in the tap's Settings > Actions > General > Workflow permissions.
-If permission is missing, automation reports a failure and leaves the validated
-branch available for a manually opened draft. Do not enable auto-merge or widen
-the token's repository permissions beyond those required by the update jobs.
+If permission is missing, automation fails explicitly rather than publishing
+without validation. Write permissions are job-scoped: `contents: write`,
+`pull-requests: write` and `actions: write`. Both jobs have `attestations: read`;
+the trusted merger also needs `checks: read` and `statuses: read` to inspect all
+head checks. Ordinary PR validation remains read-only, and repository-wide
+auto-merge is not required.
 
 KillSwitch also keeps GitHub latest livecheck for independent stable-release
 auditing. Automated or manual updates verify the actual versioned DMG, its GitHub
