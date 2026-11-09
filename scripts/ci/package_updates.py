@@ -36,15 +36,15 @@ class Package:
     path: str
     repository: str
     templates: tuple[str, ...]
-    manifest: str | None = None
+    manifest: str | tuple[str, ...] | None = None
 
     def asset_names(self, version):
         return tuple(template.format(version=version) for template in self.templates)
 
     def checksum_names(self, version):
-        return (self.manifest,) if self.manifest else tuple(
-            f"{name}.sha256" for name in self.asset_names(version)
-        )
+        if isinstance(self.manifest, str):
+            return (self.manifest,)
+        return self.manifest or tuple(f"{name}.sha256" for name in self.asset_names(version))
 
 
 PACKAGES = {
@@ -62,6 +62,16 @@ PACKAGES = {
     ),
     "killswitch": Package(
         "killswitch", "Casks/killswitch.rb", "mbianchidev/kill-switch", ("KillSwitch.dmg",),
+    ),
+    "porto": Package(
+        "porto", "Casks/porto.rb", "mbianchidev/porto",
+        tuple(f"porto-desktop_{{version}}_darwin_{arch}.dmg" for arch in ("arm64", "amd64")),
+        "SHA256SUMS",
+    ),
+    "denote": Package(
+        "denote", "Casks/denote.rb", "mbianchidev/denote",
+        tuple(f"Denote_{{version}}_{arch}.dmg" for arch in ("aarch64", "x64")),
+        ("denote-macos-aarch64-SHA256SUMS.txt", "denote-macos-x64-SHA256SUMS.txt"),
     ),
 }
 
@@ -113,6 +123,11 @@ def definition_pattern(package, version, name):
     if package.name == "killswitch":
         return re.compile(r'^  sha256 "(?P<digest>[0-9a-f]{64})"$', re.MULTILINE)
     url = f"https://github.com/{package.repository}/releases/download/v{version}/{name}"
+    if package.path.startswith("Casks/"):
+        return re.compile(
+            r'^(?P<indent>[ \t]*)sha256 "(?P<digest>[0-9a-f]{64})"\n\n[ \t]*url "'
+            + re.escape(url) + r'"$', re.MULTILINE,
+        )
     return re.compile(
         r'^(?P<indent>[ \t]*)url "' + re.escape(url)
         + r'"\n[ \t]*sha256 "(?P<digest>[0-9a-f]{64})"$',
@@ -144,7 +159,11 @@ def update_text(package, text, version, digests):
         else:
             url = f"https://github.com/{package.repository}/releases/download/v{version}/{name}"
             indent = pattern.search(text).group("indent")
-            replacement = f'{indent}url "{url}"\n{indent}sha256 "{digest}"'
+            replacement = (
+                f'{indent}sha256 "{digest}"\n\n{indent}url "{url}"'
+                if package.path.startswith("Casks/")
+                else f'{indent}url "{url}"\n{indent}sha256 "{digest}"'
+            )
         text = pattern.sub(lambda match: replacement, text)
     return sendbox.VERSION_LINE.sub(f'  version "{version}"', text)
 
@@ -200,8 +219,8 @@ def verify_release(package, release):
             checksums = published_checksums((root / name).read_text(), single)
             if not package.manifest and set(checksums) != {name.removesuffix(".sha256")}:
                 raise ValueError(f"Unexpected published checksum names in {name}")
-            if published.keys() & checksums.keys():
-                raise ValueError("Duplicate published artifact checksums.")
+            if any(published[name] != checksums[name] for name in published.keys() & checksums.keys()):
+                raise ValueError("Conflicting checksums across published manifests.")
             published.update(checksums)
         for name in package.asset_names(version):
             if published.get(name) != digests[name]:

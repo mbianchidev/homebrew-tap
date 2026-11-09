@@ -23,10 +23,11 @@ def mock_definition(package, version="1.2.3"):
     else:
         url_version = "#{version}" if package.name == "sendbox" else version
         for name in package.asset_names(url_version):
-            lines.extend([
+            fields = [
                 f'    url "https://github.com/{package.repository}/releases/download/v{url_version}/{name}"',
                 f'    sha256 "{"a" * 64}"',
-            ])
+            ]
+            lines.extend([fields[1], "", fields[0]] if package.path.startswith("Casks/") else fields)
     lines.extend(['  # Mock non-release logic must remain byte-identical.', '  skip_clean "libexec"', "end"])
     return "\n".join(lines) + "\n"
 
@@ -37,10 +38,12 @@ def mock_release(package, version="9.8.7"):
         for name in package.asset_names(version)
     }
     if package.manifest:
-        contents[package.manifest] = "".join(
+        manifest = "".join(
             f"{hashlib.sha256(data).hexdigest()}  {name}\n"
             for name, data in contents.items()
         ).encode()
+        for name in package.checksum_names(version):
+            contents[name] = manifest
     else:
         for name, data in list(contents.items()):
             checksum = hashlib.sha256(data).hexdigest()
@@ -165,6 +168,23 @@ class ReleaseUpdateTests(unittest.TestCase):
         for package in UPDATES.PACKAGES.values():
             with self.subTest(package=package.name):
                 self.verify(package, *mock_release(package))
+
+    def test_denote_architecture_manifests_may_repeat_identical_checksums(self):
+        package = UPDATES.PACKAGES["denote"]
+        release, contents = mock_release(package)
+        self.assertEqual(len(package.checksum_names("9.8.7")), 2)
+        self.verify(package, release, contents)
+
+    def test_conflicting_architecture_manifest_checksums_are_rejected(self):
+        package = UPDATES.PACKAGES["denote"]
+        release, contents = mock_release(package)
+        name = package.checksum_names("9.8.7")[1]
+        contents[name] = contents[name].replace(contents[name][:64], b"0" * 64, 1)
+        for asset in release["assets"]:
+            if asset["name"] == name:
+                asset["digest"] = f"sha256:{hashlib.sha256(contents[name]).hexdigest()}"
+        with self.assertRaisesRegex(ValueError, "Conflicting"):
+            self.verify(package, release, contents)
 
     def test_rejects_changed_download_bytes(self):
         for package in UPDATES.PACKAGES.values():

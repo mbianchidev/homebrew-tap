@@ -183,6 +183,7 @@ packages.each do |path|
       next
     end
 
+    run!("brew", "audit", "--cask", "--strict", "--online", qualified)
     sentinel = File.join(ENV.fetch("HOME"), "Library", "Application Support", token, "tap-ci-retained.txt")
     abort "Refusing to overwrite existing cask fixture #{sentinel}." if File.exist?(sentinel)
     FileUtils.mkdir_p(File.dirname(sentinel))

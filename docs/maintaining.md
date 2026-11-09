@@ -7,7 +7,7 @@
 | Path | Purpose |
 | --- | --- |
 | [`Formula/`](../Formula) | Sendbox and sql-not-so-lite package definitions |
-| [`Casks/`](../Casks) | KillSwitch app and bundled CLI artifacts |
+| [`Casks/`](../Casks) | KillSwitch, Porto and Denote desktop apps |
 | [`scripts/ci/`](../scripts/ci) | Package lifecycle checks and verified release updates |
 | [`tests/`](../tests) | Mock-data regression tests |
 | [Package workflow](../.github/workflows/ci.yml) | Definition checks and native lifecycle matrix |
@@ -134,7 +134,8 @@ full network isolation.
 
 ### Scheduled updates for all packages
 
-The **Package updates** workflow checks Sendbox, sql-not-so-lite and KillSwitch
+The **Package updates** workflow checks Sendbox, sql-not-so-lite, KillSwitch,
+Porto and Denote
 hourly at **17 minutes past the hour UTC**. It can also run manually from the
 Actions tab on `main`; manual runs default to a dry run. Clear the dry-run option
 to publish updates.
@@ -148,6 +149,11 @@ checksum or checksum manifest. Sendbox archives also require the existing
 tag-bound release-workflow attestations. Missing platform artifacts, ambiguous
 assets, mismatched hashes and prereleases fail explicitly rather than producing
 partial package updates. No application, service, VM or agent is launched.
+Porto uses its `SHA256SUMS` manifest; Denote uses both macOS architecture
+manifests. Identical shared entries across separate manifests are accepted;
+duplicate entries within a manifest or conflicting shared digests fail.
+Both architecture-specific DMGs must be present and verified before a cask
+update is published.
 
 The updater changes only versions, versioned release URLs where necessary and
 checksums. All pending releases are verified before any definition is written and
@@ -216,6 +222,12 @@ requirements. Retire obsolete source-repository tap deploy keys only after this
 central automation and the upstream migration PRs are merged and verified.
 KillSwitch already publishes versioned artifacts without writing to the tap and
 needs no additional source-repository integration.
+Porto and Denote already publish versioned Intel/ARM DMGs and checksum manifests
+from their release workflows, so the central updater needs no new tap-write
+credentials or source-driven tap branches. Their separate macOS packaging PRs
+correct app sealing while preserving release checksums and provenance.
+Ad-hoc signatures are not Developer ID signing or notarization; casks retain
+quarantine and never re-sign downloaded apps or start runtimes.
 
 Only Sendbox stable versions newer than v0.2.2 may be activated; the update must
 advance the version and match the latest published stable release. This floor

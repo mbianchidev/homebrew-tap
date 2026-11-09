@@ -29,9 +29,13 @@ Check each package guide for supported platforms and any separate runtime setup.
 | [Sendbox](docs/sendbox.md) | CLI for policy-controlled coding-agent VMs | `brew install mbianchidev/tap/sendbox` |
 | [sql-not-so-lite](docs/sql-not-so-lite.md) | SQLite daemon with an embedded web GUI | `brew install mbianchidev/tap/sql-not-so-lite` |
 | [KillSwitch](docs/killswitch.md) | macOS process-management app and CLI | `brew install --cask mbianchidev/tap/killswitch` |
+| [Porto](docs/porto.md) | Desktop orchestrator for containers, apps and homelabs | `brew install --cask mbianchidev/tap/porto` |
+| [Denote](docs/denote.md) | Native desktop notebook | `brew install --cask mbianchidev/tap/denote` |
 
 KillSwitch is not notarized. Read its [macOS security guidance](docs/killswitch.md#macos-security)
 before first use; the cask preserves quarantine and Gatekeeper protections.
+Porto and Denote also retain Gatekeeper protections; see their package guides
+for current macOS signing limitations.
 
 ## Documentation
 

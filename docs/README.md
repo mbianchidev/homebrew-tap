@@ -13,6 +13,8 @@ guide. Installing a package does not start its application or runtime.
 | [Sendbox](sendbox.md) | CLI and signed payload for policy-controlled coding-agent VMs | CLI: Apple silicon, macOS 15+; Linux x86_64/aarch64. VM runtime requirements are separate. |
 | [sql-not-so-lite](sql-not-so-lite.md) | SQLite daemon with gRPC and an embedded web GUI | Intel/Apple silicon Macs; Linux x86_64/aarch64. |
 | [KillSwitch](killswitch.md) | Menu bar app and `killswitchctl` process-management CLI | Intel/Apple silicon Macs, macOS 13+. |
+| [Porto](porto.md) | Desktop orchestrator for containers, apps and homelabs | Intel/Apple silicon Macs, macOS 13+. |
+| [Denote](denote.md) | Native desktop notebook | Intel/Apple silicon Macs. See the package guide for macOS requirements. |
 
 Each guide covers installation, first use, relevant configuration, upgrades,
 removal and upstream documentation. Package versions and checksums are defined
