@@ -188,9 +188,16 @@ packages.each do |path|
     abort "Refusing to overwrite existing cask fixture #{sentinel}." if File.exist?(sentinel)
     FileUtils.mkdir_p(File.dirname(sentinel))
     File.write(sentinel, "mock application data\n")
-    run!("brew", "install", "--cask", qualified)
-    abort "Cask was not installed: #{qualified}" if capture!("brew", "list", "--cask", "--versions", qualified).empty?
-    run!("brew", "uninstall", "--cask", qualified)
+    installed = false
+    begin
+      run!("brew", "install", "--cask", qualified)
+      installed = true
+      metadata = JSON.parse(capture!("brew", "info", "--json=v2", "--cask", qualified)).fetch("casks").first
+      abort "Installed cask/version mismatch: #{qualified}" unless
+        metadata.fetch("token") == token && metadata["installed"] == metadata.fetch("version")
+    ensure
+      run!("brew", "uninstall", "--cask", qualified) if installed
+    end
     abort "Uninstall removed cask user data: #{qualified}" unless File.read(sentinel) == "mock application data\n"
     FileUtils.rm_f(sentinel)
     summary("Passed #{qualified}: cask install, artifact listing, uninstall, data preservation; no app launched.")

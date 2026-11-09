@@ -11,8 +11,12 @@ brew install --cask mbianchidev/tap/denote
 ```
 
 This installs `Denote.app` without launching it or changing existing notebooks.
-The published 0.14.0 app declares macOS 10.13 as its minimum; Homebrew's supported
-macOS versions and any upstream bundled-tool requirements still apply.
+The released base app targets macOS 10.13 on Intel and macOS 11 on Apple silicon;
+Homebrew's own supported macOS versions still apply. The updater/tool metadata
+inside the app is not a copy of the separately downloaded tool archives.
+For 0.14.0, optional GitHub CLI 2.99.0 tools require macOS 12+, while optional
+Git 2.55.0 and its credential helper require macOS 26+. Installing the cask
+does not download these optional tools or imply that they work on older Macs.
 
 ## First use and macOS security
 
