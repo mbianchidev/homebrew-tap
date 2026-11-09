@@ -43,6 +43,12 @@ for regression tests, Sendbox lifecycle checks and both package-update workflows
 Use that interpreter as `python3` to match CI locally; Python 3.11+ remains supported
 for local checks. The Python tools use only the standard library, with no Python
 packages to install.
+Hosted jobs preload that exact interpreter through GitHub's release-asset API
+using pinned official archive IDs and SHA-256 digests, then let `setup-python`
+select the verified tool-cache entry. This avoids the browser download route's
+observed HTTP 504 failures without changing the interpreter or weakening checks.
+The bootstrap refuses non-hosted environments. Update its pinned asset map when
+changing Python or supported Ubuntu runner releases.
 
 From the repository root:
 

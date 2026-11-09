@@ -53,6 +53,11 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
+      - name: Preload verified pinned Python through the release asset API
+        env:
+          TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash scripts/ci/setup-python.sh
+
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
