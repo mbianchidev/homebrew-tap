@@ -37,6 +37,8 @@ class Package:
     repository: str
     templates: tuple[str, ...]
     manifest: str | tuple[str, ...] | None = None
+    # One unversioned universal DMG, a top-level cask checksum and a bare-digest `.sha256`.
+    single_dmg: bool = False
 
     def asset_names(self, version):
         return tuple(template.format(version=version) for template in self.templates)
@@ -62,6 +64,7 @@ PACKAGES = {
     ),
     "killswitch": Package(
         "killswitch", "Casks/killswitch.rb", "mbianchidev/kill-switch", ("KillSwitch.dmg",),
+        single_dmg=True,
     ),
     "porto": Package(
         "porto", "Casks/porto.rb", "mbianchidev/porto",
@@ -72,6 +75,10 @@ PACKAGES = {
         "denote", "Casks/denote.rb", "mbianchidev/denote",
         tuple(f"Denote_{{version}}_{arch}.dmg" for arch in ("aarch64", "x64")),
         ("denote-macos-aarch64-SHA256SUMS.txt", "denote-macos-x64-SHA256SUMS.txt"),
+    ),
+    "shipwatch": Package(
+        "shipwatch", "Casks/shipwatch.rb", "mbianchidev/shipwatch", ("Shipwatch.dmg",),
+        single_dmg=True,
     ),
 }
 
@@ -120,7 +127,7 @@ def release_digests(package, release):
 
 
 def definition_pattern(package, version, name):
-    if package.name == "killswitch":
+    if package.single_dmg:
         return re.compile(r'^  sha256 "(?P<digest>[0-9a-f]{64})"$', re.MULTILINE)
     if package.path.startswith("Casks/"):
         asset = name.replace(version, "#{version}")
@@ -145,10 +152,10 @@ def update_text(package, text, version, digests):
             target: digests[f"sendbox-{version}-{target}.tar.gz"]
             for target in sendbox.PLATFORMS
         })
-    if package.name == "killswitch":
-        expected = f"https://github.com/{package.repository}/releases/download/v#{{version}}/KillSwitch.dmg"
+    if package.single_dmg:
+        expected = f"https://github.com/{package.repository}/releases/download/v#{{version}}/{package.templates[0]}"
         if re.findall(r'^  url "([^"]+)"$', text, re.MULTILINE) != [expected]:
-            raise ValueError("Expected one canonical versioned KillSwitch cask URL.")
+            raise ValueError(f"Expected one canonical versioned {package.name} cask URL.")
     for old_name, name in zip(package.asset_names(current), package.asset_names(version)):
         pattern = definition_pattern(package, current, old_name)
         if len(list(pattern.finditer(text))) != 1:
@@ -156,7 +163,7 @@ def update_text(package, text, version, digests):
         digest = digests[name]
         if not DIGEST.fullmatch(digest):
             raise ValueError(f"Invalid digest for {name}")
-        if package.name == "killswitch":
+        if package.single_dmg:
             replacement = f'  sha256 "{digest}"'
         else:
             if package.path.startswith("Casks/"):
@@ -221,7 +228,7 @@ def verify_release(package, release):
                 raise ValueError(f"Downloaded bytes disagree with GitHub digest for {name}")
         published = {}
         for name in package.checksum_names(version):
-            single = package.asset_names(version)[0] if package.name == "killswitch" else None
+            single = package.asset_names(version)[0] if package.single_dmg else None
             checksums = published_checksums((root / name).read_text(), single)
             if not package.manifest and set(checksums) != {name.removesuffix(".sha256")}:
                 raise ValueError(f"Unexpected published checksum names in {name}")

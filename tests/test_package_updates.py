@@ -15,10 +15,10 @@ from scripts.ci import package_updates as UPDATES
 
 def mock_definition(package, version="1.2.3"):
     lines = ['class MockPackage', f'  version "{version}"']
-    if package.name == "killswitch":
+    if package.single_dmg:
         lines.extend([
             f'  sha256 "{"a" * 64}"',
-            f'  url "https://github.com/{package.repository}/releases/download/v#{{version}}/KillSwitch.dmg"',
+            f'  url "https://github.com/{package.repository}/releases/download/v#{{version}}/{package.templates[0]}"',
         ])
     else:
         url_version = "#{version}" if package.name == "sendbox" or package.path.startswith("Casks/") else version
@@ -48,7 +48,7 @@ def mock_release(package, version="9.8.7"):
         for name, data in list(contents.items()):
             checksum = hashlib.sha256(data).hexdigest()
             contents[f"{name}.sha256"] = (
-                f"{checksum}\n" if package.name == "killswitch"
+                f"{checksum}\n" if package.single_dmg
                 else f"{checksum}  {name}\n"
             ).encode()
     release = {
