@@ -31,11 +31,12 @@ Check each package guide for supported platforms and any separate runtime setup.
 | [KillSwitch](docs/killswitch.md) | macOS process-management app and CLI | `brew install --cask mbianchidev/tap/killswitch` |
 | [Porto](docs/porto.md) | Desktop orchestrator for containers, apps and homelabs | `brew install --cask mbianchidev/tap/porto` |
 | [Denote](docs/denote.md) | Native desktop notebook | `brew install --cask mbianchidev/tap/denote` |
+| [Shipwatch](docs/shipwatch.md) | Menu bar app for GitHub releases, Actions and open work | `brew install --cask mbianchidev/tap/shipwatch` |
 
 KillSwitch is not notarized. Read its [macOS security guidance](docs/killswitch.md#macos-security)
 before first use; the cask preserves quarantine and Gatekeeper protections.
-Porto and Denote also retain Gatekeeper protections; see their package guides
-for current macOS signing limitations.
+Porto, Denote and Shipwatch also retain Gatekeeper protections; see their
+package guides for current macOS signing limitations.
 
 ## Documentation
 

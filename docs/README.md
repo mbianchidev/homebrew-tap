@@ -15,6 +15,7 @@ guide. Installing a package does not start its application or runtime.
 | [KillSwitch](killswitch.md) | Menu bar app and `killswitchctl` process-management CLI | Intel/Apple silicon Macs, macOS 13+. |
 | [Porto](porto.md) | Desktop orchestrator for containers, apps and homelabs | Intel/Apple silicon Macs, macOS 13+. |
 | [Denote](denote.md) | Native desktop notebook | Intel/Apple silicon Macs. See the package guide for macOS requirements. |
+| [Shipwatch](shipwatch.md) | Menu bar app for GitHub releases, Actions status, issues and pull requests | Intel/Apple silicon Macs, macOS 14+. |
 
 Each guide covers installation, first use, relevant configuration, upgrades,
 removal and upstream documentation. Package versions and checksums are defined

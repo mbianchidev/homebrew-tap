@@ -7,7 +7,7 @@
 | Path | Purpose |
 | --- | --- |
 | [`Formula/`](../Formula) | Sendbox and sql-not-so-lite package definitions |
-| [`Casks/`](../Casks) | KillSwitch, Porto and Denote desktop apps |
+| [`Casks/`](../Casks) | KillSwitch, Porto, Denote and Shipwatch desktop apps |
 | [`scripts/ci/`](../scripts/ci) | Package lifecycle checks and verified release updates |
 | [`tests/`](../tests) | Mock-data regression tests |
 | [Package workflow](../.github/workflows/ci.yml) | Definition checks and native lifecycle matrix |
@@ -149,7 +149,7 @@ full network isolation.
 ### Scheduled updates for all packages
 
 The **Package updates** workflow checks Sendbox, sql-not-so-lite, KillSwitch,
-Porto and Denote
+Porto, Denote and Shipwatch
 hourly at **17 minutes past the hour UTC**. It can also run manually from the
 Actions tab on `main`; manual runs default to a dry run. Clear the dry-run option
 to publish updates.
@@ -163,6 +163,8 @@ checksum or checksum manifest. Sendbox archives also require the existing
 tag-bound release-workflow attestations. Missing platform artifacts, ambiguous
 assets, mismatched hashes and prereleases fail explicitly rather than producing
 partial package updates. No application, service, VM or agent is launched.
+KillSwitch and Shipwatch publish one universal DMG with an adjacent
+bare-digest `.sha256` file (`single_dmg` in the package registry).
 Porto uses its `SHA256SUMS` manifest; Denote uses both macOS architecture
 manifests. Identical shared entries across separate manifests are accepted;
 duplicate entries within a manifest or conflicting shared digests fail.
@@ -234,8 +236,8 @@ not push competing formula branches or write directly to this tap's `main`.
 Their separate migration PRs remove those writers and tap-write credential
 requirements. Retire obsolete source-repository tap deploy keys only after this
 central automation and the upstream migration PRs are merged and verified.
-KillSwitch already publishes versioned artifacts without writing to the tap and
-needs no additional source-repository integration.
+KillSwitch and Shipwatch already publish versioned artifacts without writing to
+the tap and need no additional source-repository integration.
 Porto and Denote already publish versioned Intel/ARM DMGs and checksum manifests
 from their release workflows, so the central updater needs no new tap-write
 credentials or source-driven tap branches. Their separate macOS packaging PRs
@@ -260,11 +262,11 @@ the trusted merger also needs `checks: read` and `statuses: read` to inspect all
 head checks. Ordinary PR validation remains read-only, and repository-wide
 auto-merge is not required.
 
-KillSwitch also keeps GitHub latest livecheck for independent stable-release
-auditing. Automated or manual updates verify the actual versioned DMG, its GitHub
-digest and the published checksum before changing the cask's version and SHA-256.
-Keep `auto_updates true` and the documented greedy-upgrade behavior while the
-built-in updater exists.
+KillSwitch and Shipwatch also keep GitHub latest livecheck for independent
+stable-release auditing. Automated or manual updates verify the actual versioned
+DMG, its GitHub digest and the published checksum before changing the cask's
+version and SHA-256. Keep `auto_updates true` and the documented greedy-upgrade
+behavior while their built-in updaters exist.
 
 Upstream projects retain their own release tooling and credentials. The scheduled
 tap updater reads public releases and does not reuse their publishing credentials.
