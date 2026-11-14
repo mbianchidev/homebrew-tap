@@ -1,6 +1,6 @@
 cask "shipwatch" do
-  version "0.0.1"
-  sha256 "2278065084db03e97264bdeeeef65ac90fa8ecf1964e230cc09879e4ebe390fb"
+  version "0.0.2"
+  sha256 "63d411f3af15d77d515ec0f8f62ed2701aebd7bd696396acdc8ae7466b1520ca"
 
   url "https://github.com/mbianchidev/shipwatch/releases/download/v#{version}/Shipwatch.dmg"
   name "Shipwatch"
