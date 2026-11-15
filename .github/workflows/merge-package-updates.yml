@@ -1,9 +1,6 @@
 name: Merge verified package updates
 
 on:
-  workflow_run:
-    workflows: [Packages]
-    types: [completed]
   workflow_dispatch:
     inputs:
       run-id:
@@ -24,14 +21,7 @@ permissions:
 
 jobs:
   merge:
-    if: >-
-      github.repository == 'mbianchidev/homebrew-tap' &&
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event.workflow_run.event == 'workflow_dispatch' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        startsWith(github.event.workflow_run.head_branch, 'automation/package-updates-') &&
-        github.event.workflow_run.head_repository.full_name == github.repository))
+    if: github.repository == 'mbianchidev/homebrew-tap' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -44,8 +34,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       PYTHONDONTWRITEBYTECODE: "1"
-      MERGE_RUN_ID: ${{ github.event.workflow_run.id || inputs.run-id }}
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+      MERGE_RUN_ID: ${{ inputs.run-id }}
+      DRY_RUN: ${{ inputs.dry-run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

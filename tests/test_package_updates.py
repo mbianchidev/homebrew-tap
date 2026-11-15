@@ -650,7 +650,7 @@ class AutomaticMergeTests(unittest.TestCase):
         }
         names = ["validate"] + [
             f"Package lifecycle ({runner})"
-            for runner in ("macos-15-intel", "macos-latest", "ubuntu-latest", "ubuntu-24.04-arm")
+            for runner in ("macos-latest", "ubuntu-latest", "ubuntu-24.04-arm")
         ]
         jobs = [
             {"name": name, "status": "completed", "conclusion": "success"} for name in names
@@ -677,6 +677,7 @@ class AutomaticMergeTests(unittest.TestCase):
             mock.patch.object(UPDATES.sendbox, "api", side_effect=self.api),
             mock.patch.object(UPDATES, "run", side_effect=self.run_command),
             mock.patch.object(UPDATES, "verify_release"),
+            mock.patch.object(UPDATES, "time"),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -721,6 +722,21 @@ class AutomaticMergeTests(unittest.TestCase):
         self.assert_no_merge()
         self.assertFalse(any(call[:3] == ("gh", "workflow", "run") for call in self.commands))
         UPDATES.verify_release.assert_called_once()
+
+    def test_waits_for_the_requesting_ci_run_to_finish_before_merging(self):
+        statuses = iter(("in_progress", "in_progress"))
+        api = self.api
+
+        def finishing(path):
+            response = api(path)
+            if path == f"{self.prefix}/actions/runs/123":
+                response["status"] = next(statuses, "completed")
+            return response
+
+        UPDATES.sendbox.api.side_effect = finishing
+        UPDATES.merge_update(123)
+        self.assertEqual(UPDATES.time.sleep.call_count, 2)
+        self.assertEqual(sum(call[:4] == ("gh", "api", "--method", "PUT") for call in self.commands), 1)
 
     def test_simultaneous_updates_for_all_registered_packages_merge_as_one_batch(self):
         updates = []
@@ -964,6 +980,7 @@ class RetirementTests(unittest.TestCase):
             f"{self.prefix}/compare/main...{self.head}": {"merge_base_commit": {"sha": self.base}},
             f"{self.prefix}/commits/main": {"sha": self.main},
             f"repos/{self.package.repository}/releases/tags/v1.2.4": self.release,
+            f"repos/{self.package.repository}/releases/latest": self.release,
         }
         self.commands = []
         self.stdout = io.StringIO()
@@ -1001,6 +1018,16 @@ class RetirementTests(unittest.TestCase):
         (self.root / self.package.path).write_text(self.original)
         UPDATES.retire_updates()
         self.assert_no_close()
+
+    def test_closes_pending_update_superseded_by_newer_upstream_release(self):
+        (self.root / self.package.path).write_text(self.original)
+        newer, _ = mock_release(self.package, "1.2.5")
+        self.responses[f"repos/{self.package.repository}/releases/latest"] = newer
+        UPDATES.retire_updates()
+        closes = [call for call in self.commands if call[:3] == ("gh", "pr", "close")]
+        self.assertEqual(len(closes), 1)
+        self.assertIn("newer verified upstream releases", closes[0][-1])
+        UPDATES.check_reviews.assert_called_once_with(1)
 
     def test_preserves_foreign_nonbot_and_modified_update_prs(self):
         for change in (

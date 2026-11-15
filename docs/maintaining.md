@@ -99,7 +99,7 @@ CI discovers `Formula/` and `Casks/`, accepts an empty tap, checks Ruby syntax,
 style and regression tests, and evaluates all platform definitions with
 `brew readall --os=all --arch=all --aliases mbianchidev/tap`.
 
-Compatible packages are installed and removed on Intel/ARM Macs and Linux
+Compatible packages are installed and removed on ARM Macs and Linux
 x86_64/aarch64 runners. Strict online DMG cask audits run on macOS because they
 need `hdiutil`. Packages remain independent; an unavailable platform is reported
 as skipped rather than blocking unrelated packages.
@@ -109,10 +109,9 @@ Ubuntu x86_64 jobs follow `ubuntu-latest`. GitHub provides only versioned
 so native ARM coverage uses `ubuntu-24.04-arm`, not an unsupported
 `ubuntu-latest-arm` alias.
 
-ARM macOS follows `macos-latest`. That alias selects ARM hardware, not Intel,
-so `macos-15-intel` remains pinned to preserve native Intel coverage and existing
-check names. GitHub provides no standard Intel latest alias; no larger or paid
-runner is substituted.
+ARM macOS follows `macos-latest`. Homebrew no longer supports Intel macOS, so CI
+has no Intel lifecycle job. Intel cask variants still pass `brew readall` and
+release checksum verification but are not installed in CI.
 
 Sendbox checks release checksums and tag-bound provenance, a real
 previous-stable-to-current `brew upgrade`, version/help/configuration/completions,
@@ -179,27 +178,39 @@ full-tap audits. An incomplete or invalid candidate fails the batch explicitly.
 The branch identity binds the exact main revision and definition bytes. Matching
 branches and PRs are reused after interrupted publication or CI dispatch; closed
 or merged PRs are not duplicated, and unexpected branch edits are never replaced
-or force-pushed. Old bot-generated, release-only PRs are closed without merging
-once their versions are already incorporated into `main`. Modified or unrelated
-PRs are preserved with an explicit warning.
+or force-pushed. Each non-dry update check closes older bot-generated,
+release-only PRs without merging them once their versions are already on
+`main`, or as soon as any of their packages has a newer stable release, since
+the merger accepts only latest releases. The same check then publishes the
+replacement batch. Modified or unrelated PRs, and PRs with unresolved review
+feedback, are preserved with an explicit warning.
 
 The workflow uses the repository-scoped `GITHUB_TOKEN`, not a new personal token
-or deploy key. Write permissions are limited to the update job. GitHub does not
-run push CI for token-created commits, and token-created PR workflows can require
-approval, so the updater explicitly dispatches the existing **Packages** workflow
-on the exact update branch. All native lifecycle checks and strict cask audits
-remain enabled. Existing failed current-head CI is reported for attention, not
-silently retried or accepted. The full tap keeps its Intel/ARM macOS and Linux
-lifecycle coverage.
+or deploy key. Write permissions are limited to the update, merge-request and
+merge jobs. GitHub does not run push CI for token-created commits, and
+token-created PR workflows wait for approval, so the updater explicitly
+dispatches the existing **Packages** workflow on the exact update branch. The
+PR's own approval-pending run is redundant: do not approve it, since a second
+in-progress check set only delays the merge. All native lifecycle checks and
+strict cask audits remain enabled. Existing failed current-head CI is reported
+for attention, not silently retried or accepted. The full tap keeps its ARM
+macOS and x86_64/aarch64 Linux lifecycle coverage.
 
-The **Merge verified package updates** workflow runs separately after successful
-native CI and uses only code from its trusted main-branch event revision. It
-never checks out PR code or consumes PR-produced executable artifacts with its
-write token. It requires one unchanged, ready, same-repository GitHub Actions bot
+Token-dispatched runs cannot trigger `workflow_run`, so once every definition
+and native job passes, the dispatched **Packages** run's final job dispatches
+the **Merge verified package updates** workflow on `main` with its own run ID.
+Updates therefore merge minutes after CI passes instead of waiting for the next
+hourly check, which keeps fast-moving upstream releases from superseding a
+pending PR before it lands.
+
+The merge workflow uses only code from its trusted main-branch event revision.
+It waits briefly for the requesting CI run to finish, then never checks out PR
+code or consumes PR-produced executable artifacts with its write token. It
+requires one unchanged, ready, same-repository GitHub Actions bot
 PR whose single update commit is based on current `main`. Every candidate byte
 must match an independently reconstructed latest-stable update; artifacts,
 checksums and Sendbox's tag-bound attestations are reverified before merging.
-All five definition/native jobs must pass; additional head checks must be
+All four definition/native jobs must pass; additional head checks must be
 successful or report a completed neutral/no-work result. Unresolved threads,
 pending reviews or requested changes block the merge. The exact head SHA guards
 the squash merge. Main, the PR, release metadata, checks and reviews are rechecked
@@ -208,11 +219,13 @@ merge restrictions. No branch protection or repository-wide auto-merge setting
 is weakened or enabled.
 
 Token-created merges do not trigger normal push CI, so the merger explicitly
-dispatches full post-merge package CI on `main`. A successful existing update CI
-run can redispatch the trusted merger on the next hourly update check, allowing
-review/check completion or interrupted merge recovery without repeating native
-CI. Maintainers can also run the merge workflow manually on `main` with its
-successful native CI run ID; manual merge validation defaults to a dry run.
+dispatches full post-merge package CI on `main`. If the immediate hand-off is
+interrupted or blocked by pending checks or reviews, a successful existing
+update CI run redispatches the trusted merger on the next hourly update check
+without repeating native CI. A PR superseded by a newer upstream release is not
+merged; the next check closes it and publishes a fresh batch. Maintainers can
+also run the merge workflow manually on `main` with its successful native CI run
+ID; manual merge validation defaults to a dry run.
 
 Preview releases locally with authenticated `gh`, without editing definitions,
 creating branches or opening PRs:
@@ -256,8 +269,11 @@ retain their checksum and tag-bound, GitHub-hosted-runner provenance checks.
 For automated PR creation, enable **Allow GitHub Actions to create and approve
 pull requests** in the tap's Settings > Actions > General > Workflow permissions.
 If permission is missing, automation fails explicitly rather than publishing
-without validation. Write permissions are job-scoped: `contents: write`,
-`pull-requests: write` and `actions: write`. Both jobs have `attestations: read`;
+without validation. Write permissions are job-scoped: the update and merge jobs
+have `contents: write`, `pull-requests: write` and `actions: write`; the
+**Packages** merge-request job has only `actions: write` and `contents: read`,
+and runs only for dispatched `automation/package-updates-*` branches. Both
+update and merge jobs have `attestations: read`;
 the trusted merger also needs `checks: read` and `statuses: read` to inspect all
 head checks. Ordinary PR validation remains read-only, and repository-wide
 auto-merge is not required.

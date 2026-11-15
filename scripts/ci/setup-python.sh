@@ -20,12 +20,6 @@ case "$platform" in
     digest=e1a49acab28b4a180ee9819663f9e01d0e56ed49f78b1e370dedea8863301a3a
     checksum_command=(shasum -a 256 --check)
     ;;
-  Darwin:x86_64)
-    arch=x64
-    asset=662872991
-    digest=cf2d9c042c9ec5a42e4ae45259faf9dfbbbd21e915ab6b892acaef5312872156
-    checksum_command=(shasum -a 256 --check)
-    ;;
   Linux:x86_64|Linux:aarch64)
     [[ "$(lsb_release -is)" == Ubuntu ]] || fail "only Ubuntu Linux is supported"
     arch=x64

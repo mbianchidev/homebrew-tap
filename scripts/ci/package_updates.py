@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 from . import sendbox
 
@@ -23,11 +24,12 @@ COMMIT = re.compile(r"[0-9a-f]{40}")
 UPDATE_BRANCH = re.compile(r"automation/package-updates-[0-9a-f]{16}")
 CI_JOBS = {
     "validate",
-    "Package lifecycle (macos-15-intel)",
     "Package lifecycle (macos-latest)",
     "Package lifecycle (ubuntu-latest)",
     "Package lifecycle (ubuntu-24.04-arm)",
 }
+RUN_COMPLETION_POLLS = 30
+RUN_COMPLETION_INTERVAL = 10
 
 
 @dataclass(frozen=True)
@@ -417,9 +419,10 @@ def publish_updates(updates, base):
             "--body", (
                 f"Update published stable releases: {versions}.\n\n"
                 "All supported release artifacts match GitHub asset digests and published "
-                "checksums. Full native package CI is explicitly dispatched for this revision. "
-                "A trusted main-branch workflow merges only verified release-field changes "
-                "after all native checks pass, with no unresolved review feedback."
+                "checksums. Full native package CI is explicitly dispatched for this revision; "
+                "the token-created PR run awaiting approval is redundant and needs no action. "
+                "When native CI passes, it hands off to a trusted main-branch workflow that "
+                "merges only verified release-field changes with no unresolved review feedback."
             ),
             capture=True,
         )
@@ -499,7 +502,7 @@ def check_ci(run_id, head):
             for name in CI_JOBS
         )
     ):
-        raise ValueError("All definition checks and all four native lifecycle jobs must pass.")
+        raise ValueError("All definition checks and all three native lifecycle jobs must pass.")
     checks = sendbox.api(f"{prefix}/commits/{head}/check-runs?per_page=100")
     if len(checks["check_runs"]) != checks["total_count"] or any(
         check["status"] != "completed" or check["conclusion"] not in ("success", "neutral", "skipped")
@@ -511,11 +514,20 @@ def check_ci(run_id, head):
         raise ValueError("Pending or failed current-head commit statuses prevent automatic merging.")
 
 
+def finished_run(run_id):
+    # Package CI requests its merge from a final job, so the run may still be finishing.
+    for poll in range(RUN_COMPLETION_POLLS):
+        workflow = sendbox.api(f"repos/{REPOSITORY}/actions/runs/{run_id}")
+        if workflow.get("status") == "completed" or poll == RUN_COMPLETION_POLLS - 1:
+            return workflow
+        time.sleep(RUN_COMPLETION_INTERVAL)
+
+
 def merge_update(run_id, dry_run=False):
     if not str(run_id).isdigit() or int(run_id) <= 0:
         raise ValueError("An exact successful package workflow run ID is required.")
     prefix = f"repos/{REPOSITORY}"
-    workflow = sendbox.api(f"{prefix}/actions/runs/{run_id}")
+    workflow = finished_run(run_id)
     branch = workflow["head_branch"]
     head = workflow["head_sha"]
     repository = workflow.get("head_repository") or {}
@@ -646,12 +658,24 @@ def retire_updates():
             print(f"::warning::Keeping PR #{number}: it is not a release-only generated update.")
             continue
         candidates = {path: definition_at(path, head) for path in paths}
-        if any(
-            not (ROOT / path).is_file()
-            or sendbox.stable_version(current_version((ROOT / path).read_text()))
-            < sendbox.stable_version(current_version(candidate))
+        if any(not (ROOT / path).is_file() for path in candidates):
+            continue
+        proposed = {
+            path: sendbox.stable_version(current_version(candidate))
             for path, candidate in candidates.items()
-        ):
+        }
+        pending = [
+            path for path in candidates
+            if sendbox.stable_version(current_version((ROOT / path).read_text())) < proposed[path]
+        ]
+        # The merger only accepts latest releases, so one outdated package blocks the whole batch.
+        outdated = [
+            path for path in pending
+            if proposed[path] < sendbox.stable_version(release_version(
+                sendbox.api(f"repos/{known[path].repository}/releases/latest"),
+            ))
+        ]
+        if pending and not outdated:
             continue
         comparison = sendbox.api(f"repos/{REPOSITORY}/compare/main...{head}")
         base = comparison["merge_base_commit"]["sha"]
@@ -688,8 +712,11 @@ def retire_updates():
                 continue
             run(
                 "gh", "pr", "close", str(number), "--repo", REPOSITORY,
-                "--comment", "Superseded by verified package releases already on main. "
-                "Closing this release-only update without merging it.",
+                "--comment", (
+                    "Superseded by newer verified upstream releases; the updater publishes "
+                    "a fresh batch. " if outdated else
+                    "Superseded by verified package releases already on main. "
+                ) + "Closing this release-only update without merging it.",
             )
 
 

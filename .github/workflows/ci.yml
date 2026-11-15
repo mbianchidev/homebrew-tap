@@ -110,9 +110,7 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          # macos-latest is ARM; Intel coverage needs a versioned runner.
-          - runner: macos-15-intel
-            architecture: x86_64
+          # Homebrew no longer supports Intel macOS, so only ARM Macs are exercised.
           - runner: macos-latest
             architecture: arm64
           - runner: ubuntu-latest
@@ -177,3 +175,25 @@ jobs:
         env:
           TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: ruby scripts/ci/test-packages.rb
+
+  request-merge:
+    name: Request verified update merge
+    needs: [validate, install]
+    # Token-dispatched runs cannot emit workflow_run, so hand off to the trusted merger directly.
+    if: >-
+      success() &&
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'mbianchidev/homebrew-tap' &&
+      startsWith(github.ref, 'refs/heads/automation/package-updates-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch the main-branch merger for this exact CI run
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: >-
+          gh workflow run merge-package-updates.yml --repo "$GITHUB_REPOSITORY" --ref main
+          -f run-id="$RUN_ID" -f dry-run=false
