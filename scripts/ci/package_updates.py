@@ -24,7 +24,6 @@ COMMIT = re.compile(r"[0-9a-f]{40}")
 UPDATE_BRANCH = re.compile(r"automation/package-updates-[0-9a-f]{16}")
 CI_JOBS = {
     "validate",
-    "Package lifecycle (macos-15-intel)",
     "Package lifecycle (macos-latest)",
     "Package lifecycle (ubuntu-latest)",
     "Package lifecycle (ubuntu-24.04-arm)",
@@ -503,7 +502,7 @@ def check_ci(run_id, head):
             for name in CI_JOBS
         )
     ):
-        raise ValueError("All definition checks and all four native lifecycle jobs must pass.")
+        raise ValueError("All definition checks and all three native lifecycle jobs must pass.")
     checks = sendbox.api(f"{prefix}/commits/{head}/check-runs?per_page=100")
     if len(checks["check_runs"]) != checks["total_count"] or any(
         check["status"] != "completed" or check["conclusion"] not in ("success", "neutral", "skipped")

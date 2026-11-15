@@ -650,7 +650,7 @@ class AutomaticMergeTests(unittest.TestCase):
         }
         names = ["validate"] + [
             f"Package lifecycle ({runner})"
-            for runner in ("macos-15-intel", "macos-latest", "ubuntu-latest", "ubuntu-24.04-arm")
+            for runner in ("macos-latest", "ubuntu-latest", "ubuntu-24.04-arm")
         ]
         jobs = [
             {"name": name, "status": "completed", "conclusion": "success"} for name in names

@@ -99,7 +99,7 @@ CI discovers `Formula/` and `Casks/`, accepts an empty tap, checks Ruby syntax,
 style and regression tests, and evaluates all platform definitions with
 `brew readall --os=all --arch=all --aliases mbianchidev/tap`.
 
-Compatible packages are installed and removed on Intel/ARM Macs and Linux
+Compatible packages are installed and removed on ARM Macs and Linux
 x86_64/aarch64 runners. Strict online DMG cask audits run on macOS because they
 need `hdiutil`. Packages remain independent; an unavailable platform is reported
 as skipped rather than blocking unrelated packages.
@@ -109,10 +109,9 @@ Ubuntu x86_64 jobs follow `ubuntu-latest`. GitHub provides only versioned
 so native ARM coverage uses `ubuntu-24.04-arm`, not an unsupported
 `ubuntu-latest-arm` alias.
 
-ARM macOS follows `macos-latest`. That alias selects ARM hardware, not Intel,
-so `macos-15-intel` remains pinned to preserve native Intel coverage and existing
-check names. GitHub provides no standard Intel latest alias; no larger or paid
-runner is substituted.
+ARM macOS follows `macos-latest`. Homebrew no longer supports Intel macOS, so CI
+has no Intel lifecycle job. Intel cask variants still pass `brew readall` and
+release checksum verification but are not installed in CI.
 
 Sendbox checks release checksums and tag-bound provenance, a real
 previous-stable-to-current `brew upgrade`, version/help/configuration/completions,
@@ -194,8 +193,8 @@ dispatches the existing **Packages** workflow on the exact update branch. The
 PR's own approval-pending run is redundant: do not approve it, since a second
 in-progress check set only delays the merge. All native lifecycle checks and
 strict cask audits remain enabled. Existing failed current-head CI is reported
-for attention, not silently retried or accepted. The full tap keeps its
-Intel/ARM macOS and Linux lifecycle coverage.
+for attention, not silently retried or accepted. The full tap keeps its ARM
+macOS and x86_64/aarch64 Linux lifecycle coverage.
 
 Token-dispatched runs cannot trigger `workflow_run`, so once every definition
 and native job passes, the dispatched **Packages** run's final job dispatches
@@ -211,7 +210,7 @@ requires one unchanged, ready, same-repository GitHub Actions bot
 PR whose single update commit is based on current `main`. Every candidate byte
 must match an independently reconstructed latest-stable update; artifacts,
 checksums and Sendbox's tag-bound attestations are reverified before merging.
-All five definition/native jobs must pass; additional head checks must be
+All four definition/native jobs must pass; additional head checks must be
 successful or report a completed neutral/no-work result. Unresolved threads,
 pending reviews or requested changes block the merge. The exact head SHA guards
 the squash merge. Main, the PR, release metadata, checks and reviews are rechecked
