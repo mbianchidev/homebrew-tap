@@ -179,9 +179,12 @@ full-tap audits. An incomplete or invalid candidate fails the batch explicitly.
 The branch identity binds the exact main revision and definition bytes. Matching
 branches and PRs are reused after interrupted publication or CI dispatch; closed
 or merged PRs are not duplicated, and unexpected branch edits are never replaced
-or force-pushed. Old bot-generated, release-only PRs are closed without merging
-once their versions are already incorporated into `main`. Modified or unrelated
-PRs are preserved with an explicit warning.
+or force-pushed. Each non-dry update check closes older bot-generated,
+release-only PRs without merging them once their versions are already on
+`main`, or as soon as any of their packages has a newer stable release, since
+the merger accepts only latest releases. The same check then publishes the
+replacement batch. Modified or unrelated PRs, and PRs with unresolved review
+feedback, are preserved with an explicit warning.
 
 The workflow uses the repository-scoped `GITHUB_TOKEN`, not a new personal token
 or deploy key. Write permissions are limited to the update, merge-request and
@@ -221,10 +224,9 @@ dispatches full post-merge package CI on `main`. If the immediate hand-off is
 interrupted or blocked by pending checks or reviews, a successful existing
 update CI run redispatches the trusted merger on the next hourly update check
 without repeating native CI. A PR superseded by a newer upstream release is not
-merged; the next check publishes a fresh batch and closes the stale PR once
-`main` includes its version. Maintainers can also run the merge workflow
-manually on `main` with its successful native CI run ID; manual merge
-validation defaults to a dry run.
+merged; the next check closes it and publishes a fresh batch. Maintainers can
+also run the merge workflow manually on `main` with its successful native CI run
+ID; manual merge validation defaults to a dry run.
 
 Preview releases locally with authenticated `gh`, without editing definitions,
 creating branches or opening PRs:

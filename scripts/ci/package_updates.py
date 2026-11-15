@@ -659,12 +659,24 @@ def retire_updates():
             print(f"::warning::Keeping PR #{number}: it is not a release-only generated update.")
             continue
         candidates = {path: definition_at(path, head) for path in paths}
-        if any(
-            not (ROOT / path).is_file()
-            or sendbox.stable_version(current_version((ROOT / path).read_text()))
-            < sendbox.stable_version(current_version(candidate))
+        if any(not (ROOT / path).is_file() for path in candidates):
+            continue
+        proposed = {
+            path: sendbox.stable_version(current_version(candidate))
             for path, candidate in candidates.items()
-        ):
+        }
+        pending = [
+            path for path in candidates
+            if sendbox.stable_version(current_version((ROOT / path).read_text())) < proposed[path]
+        ]
+        # The merger only accepts latest releases, so one outdated package blocks the whole batch.
+        outdated = [
+            path for path in pending
+            if proposed[path] < sendbox.stable_version(release_version(
+                sendbox.api(f"repos/{known[path].repository}/releases/latest"),
+            ))
+        ]
+        if pending and not outdated:
             continue
         comparison = sendbox.api(f"repos/{REPOSITORY}/compare/main...{head}")
         base = comparison["merge_base_commit"]["sha"]
@@ -701,8 +713,11 @@ def retire_updates():
                 continue
             run(
                 "gh", "pr", "close", str(number), "--repo", REPOSITORY,
-                "--comment", "Superseded by verified package releases already on main. "
-                "Closing this release-only update without merging it.",
+                "--comment", (
+                    "Superseded by newer verified upstream releases; the updater publishes "
+                    "a fresh batch. " if outdated else
+                    "Superseded by verified package releases already on main. "
+                ) + "Closing this release-only update without merging it.",
             )
 
 

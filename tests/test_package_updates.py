@@ -980,6 +980,7 @@ class RetirementTests(unittest.TestCase):
             f"{self.prefix}/compare/main...{self.head}": {"merge_base_commit": {"sha": self.base}},
             f"{self.prefix}/commits/main": {"sha": self.main},
             f"repos/{self.package.repository}/releases/tags/v1.2.4": self.release,
+            f"repos/{self.package.repository}/releases/latest": self.release,
         }
         self.commands = []
         self.stdout = io.StringIO()
@@ -1017,6 +1018,16 @@ class RetirementTests(unittest.TestCase):
         (self.root / self.package.path).write_text(self.original)
         UPDATES.retire_updates()
         self.assert_no_close()
+
+    def test_closes_pending_update_superseded_by_newer_upstream_release(self):
+        (self.root / self.package.path).write_text(self.original)
+        newer, _ = mock_release(self.package, "1.2.5")
+        self.responses[f"repos/{self.package.repository}/releases/latest"] = newer
+        UPDATES.retire_updates()
+        closes = [call for call in self.commands if call[:3] == ("gh", "pr", "close")]
+        self.assertEqual(len(closes), 1)
+        self.assertIn("newer verified upstream releases", closes[0][-1])
+        UPDATES.check_reviews.assert_called_once_with(1)
 
     def test_preserves_foreign_nonbot_and_modified_update_prs(self):
         for change in (
