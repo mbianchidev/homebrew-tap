@@ -1,13 +1,13 @@
 cask "denote" do
-  version "0.14.1"
+  version "0.14.2"
 
   on_arm do
-    sha256 "cf8b7a42afdf0ed19f1e34d07765289d3df8ff11a47a5a8f2b4ef907642863f0"
+    sha256 "5bc8c882bee14171e92bf60ffb3fc086b27d43a95ac6391eec28bdcb28b6d0d8"
 
     url "https://github.com/mbianchidev/denote/releases/download/v#{version}/Denote_#{version}_aarch64.dmg"
   end
   on_intel do
-    sha256 "4d96c8423756a677a8b376cdbf2b185b192a1d1048f712e4fa8f10ebfd995dc3"
+    sha256 "e2399c5a451d584df761376d2c6db99fa670a90ba1a3ad0e183c55161ae907d4"
 
     url "https://github.com/mbianchidev/denote/releases/download/v#{version}/Denote_#{version}_x64.dmg"
   end
