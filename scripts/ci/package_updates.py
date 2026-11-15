@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 from . import sendbox
 
@@ -28,6 +29,8 @@ CI_JOBS = {
     "Package lifecycle (ubuntu-latest)",
     "Package lifecycle (ubuntu-24.04-arm)",
 }
+RUN_COMPLETION_POLLS = 30
+RUN_COMPLETION_INTERVAL = 10
 
 
 @dataclass(frozen=True)
@@ -417,9 +420,10 @@ def publish_updates(updates, base):
             "--body", (
                 f"Update published stable releases: {versions}.\n\n"
                 "All supported release artifacts match GitHub asset digests and published "
-                "checksums. Full native package CI is explicitly dispatched for this revision. "
-                "A trusted main-branch workflow merges only verified release-field changes "
-                "after all native checks pass, with no unresolved review feedback."
+                "checksums. Full native package CI is explicitly dispatched for this revision; "
+                "the token-created PR run awaiting approval is redundant and needs no action. "
+                "When native CI passes, it hands off to a trusted main-branch workflow that "
+                "merges only verified release-field changes with no unresolved review feedback."
             ),
             capture=True,
         )
@@ -511,11 +515,20 @@ def check_ci(run_id, head):
         raise ValueError("Pending or failed current-head commit statuses prevent automatic merging.")
 
 
+def finished_run(run_id):
+    # Package CI requests its merge from a final job, so the run may still be finishing.
+    for poll in range(RUN_COMPLETION_POLLS):
+        workflow = sendbox.api(f"repos/{REPOSITORY}/actions/runs/{run_id}")
+        if workflow.get("status") == "completed" or poll == RUN_COMPLETION_POLLS - 1:
+            return workflow
+        time.sleep(RUN_COMPLETION_INTERVAL)
+
+
 def merge_update(run_id, dry_run=False):
     if not str(run_id).isdigit() or int(run_id) <= 0:
         raise ValueError("An exact successful package workflow run ID is required.")
     prefix = f"repos/{REPOSITORY}"
-    workflow = sendbox.api(f"{prefix}/actions/runs/{run_id}")
+    workflow = finished_run(run_id)
     branch = workflow["head_branch"]
     head = workflow["head_sha"]
     repository = workflow.get("head_repository") or {}

@@ -677,6 +677,7 @@ class AutomaticMergeTests(unittest.TestCase):
             mock.patch.object(UPDATES.sendbox, "api", side_effect=self.api),
             mock.patch.object(UPDATES, "run", side_effect=self.run_command),
             mock.patch.object(UPDATES, "verify_release"),
+            mock.patch.object(UPDATES, "time"),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -721,6 +722,21 @@ class AutomaticMergeTests(unittest.TestCase):
         self.assert_no_merge()
         self.assertFalse(any(call[:3] == ("gh", "workflow", "run") for call in self.commands))
         UPDATES.verify_release.assert_called_once()
+
+    def test_waits_for_the_requesting_ci_run_to_finish_before_merging(self):
+        statuses = iter(("in_progress", "in_progress"))
+        api = self.api
+
+        def finishing(path):
+            response = api(path)
+            if path == f"{self.prefix}/actions/runs/123":
+                response["status"] = next(statuses, "completed")
+            return response
+
+        UPDATES.sendbox.api.side_effect = finishing
+        UPDATES.merge_update(123)
+        self.assertEqual(UPDATES.time.sleep.call_count, 2)
+        self.assertEqual(sum(call[:4] == ("gh", "api", "--method", "PUT") for call in self.commands), 1)
 
     def test_simultaneous_updates_for_all_registered_packages_merge_as_one_batch(self):
         updates = []

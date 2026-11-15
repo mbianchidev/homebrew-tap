@@ -184,18 +184,27 @@ once their versions are already incorporated into `main`. Modified or unrelated
 PRs are preserved with an explicit warning.
 
 The workflow uses the repository-scoped `GITHUB_TOKEN`, not a new personal token
-or deploy key. Write permissions are limited to the update job. GitHub does not
-run push CI for token-created commits, and token-created PR workflows can require
-approval, so the updater explicitly dispatches the existing **Packages** workflow
-on the exact update branch. All native lifecycle checks and strict cask audits
-remain enabled. Existing failed current-head CI is reported for attention, not
-silently retried or accepted. The full tap keeps its Intel/ARM macOS and Linux
-lifecycle coverage.
+or deploy key. Write permissions are limited to the update, merge-request and
+merge jobs. GitHub does not run push CI for token-created commits, and
+token-created PR workflows wait for approval, so the updater explicitly
+dispatches the existing **Packages** workflow on the exact update branch. The
+PR's own approval-pending run is redundant: do not approve it, since a second
+in-progress check set only delays the merge. All native lifecycle checks and
+strict cask audits remain enabled. Existing failed current-head CI is reported
+for attention, not silently retried or accepted. The full tap keeps its
+Intel/ARM macOS and Linux lifecycle coverage.
 
-The **Merge verified package updates** workflow runs separately after successful
-native CI and uses only code from its trusted main-branch event revision. It
-never checks out PR code or consumes PR-produced executable artifacts with its
-write token. It requires one unchanged, ready, same-repository GitHub Actions bot
+Token-dispatched runs cannot trigger `workflow_run`, so once every definition
+and native job passes, the dispatched **Packages** run's final job dispatches
+the **Merge verified package updates** workflow on `main` with its own run ID.
+Updates therefore merge minutes after CI passes instead of waiting for the next
+hourly check, which keeps fast-moving upstream releases from superseding a
+pending PR before it lands.
+
+The merge workflow uses only code from its trusted main-branch event revision.
+It waits briefly for the requesting CI run to finish, then never checks out PR
+code or consumes PR-produced executable artifacts with its write token. It
+requires one unchanged, ready, same-repository GitHub Actions bot
 PR whose single update commit is based on current `main`. Every candidate byte
 must match an independently reconstructed latest-stable update; artifacts,
 checksums and Sendbox's tag-bound attestations are reverified before merging.
@@ -208,11 +217,14 @@ merge restrictions. No branch protection or repository-wide auto-merge setting
 is weakened or enabled.
 
 Token-created merges do not trigger normal push CI, so the merger explicitly
-dispatches full post-merge package CI on `main`. A successful existing update CI
-run can redispatch the trusted merger on the next hourly update check, allowing
-review/check completion or interrupted merge recovery without repeating native
-CI. Maintainers can also run the merge workflow manually on `main` with its
-successful native CI run ID; manual merge validation defaults to a dry run.
+dispatches full post-merge package CI on `main`. If the immediate hand-off is
+interrupted or blocked by pending checks or reviews, a successful existing
+update CI run redispatches the trusted merger on the next hourly update check
+without repeating native CI. A PR superseded by a newer upstream release is not
+merged; the next check publishes a fresh batch and closes the stale PR once
+`main` includes its version. Maintainers can also run the merge workflow
+manually on `main` with its successful native CI run ID; manual merge
+validation defaults to a dry run.
 
 Preview releases locally with authenticated `gh`, without editing definitions,
 creating branches or opening PRs:
@@ -256,8 +268,11 @@ retain their checksum and tag-bound, GitHub-hosted-runner provenance checks.
 For automated PR creation, enable **Allow GitHub Actions to create and approve
 pull requests** in the tap's Settings > Actions > General > Workflow permissions.
 If permission is missing, automation fails explicitly rather than publishing
-without validation. Write permissions are job-scoped: `contents: write`,
-`pull-requests: write` and `actions: write`. Both jobs have `attestations: read`;
+without validation. Write permissions are job-scoped: the update and merge jobs
+have `contents: write`, `pull-requests: write` and `actions: write`; the
+**Packages** merge-request job has only `actions: write` and `contents: read`,
+and runs only for dispatched `automation/package-updates-*` branches. Both
+update and merge jobs have `attestations: read`;
 the trusted merger also needs `checks: read` and `statuses: read` to inspect all
 head checks. Ordinary PR validation remains read-only, and repository-wide
 auto-merge is not required.
