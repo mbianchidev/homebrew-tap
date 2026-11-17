@@ -80,8 +80,12 @@ ruby scripts/ci/killswitch.rb Casks/killswitch.rb
 ```
 
 It verifies the DMG against GitHub's asset digest and the adjacent published
-checksum, then uses the real Homebrew installer with disposable HOME, cache,
-Caskroom, binary and custom application directories. It checks universal
+checksum, then uses the real Homebrew installer with disposable HOME, Homebrew
+configuration, cache, Caskroom, binary and custom application directories.
+Homebrew no longer loads casks from file paths, so the check trusts only
+`mbianchidev/tap/killswitch` in that disposable configuration, loads it by name
+and refuses to continue unless the installed tap's definition is byte-identical
+to the file passed on the command line. It checks universal
 architectures, the CLI link, code signature, retained quarantine, uninstall and
 mocked application-data preservation. Neither the GUI nor CLI is executed.
 

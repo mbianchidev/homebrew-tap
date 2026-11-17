@@ -8,6 +8,9 @@ require "pathname"
 require "tmpdir"
 
 module KillSwitchCask
+  # Homebrew loads casks only by name, so the tap must contain the definition under test.
+  QUALIFIED_NAME = "mbianchidev/tap/killswitch"
+
   def self.capture!(*command)
     puts "+ #{command.join(" ")}"
     output, errors, status = Open3.capture3(*command.map(&:to_s))
@@ -64,6 +67,14 @@ module KillSwitchCask
     resolved
   end
 
+  def self.require_same_definition!(loaded, file)
+    loaded = Pathname(loaded.to_s)
+    raise "Homebrew's #{QUALIFIED_NAME} source differs from #{file}; point the tap at this checkout." if
+      !loaded.file? || Digest::SHA256.file(loaded).hexdigest != Digest::SHA256.file(file).hexdigest
+
+    loaded
+  end
+
   def self.snapshot(root)
     root.glob("**/*", File::FNM_DOTMATCH).select(&:file?)
         .to_h { |path| [path, Digest::SHA256.file(path).hexdigest] }
@@ -82,7 +93,8 @@ module KillSwitchCask
     Cask::Caskroom.define_singleton_method(:path) { caskroom }
     Cask::Config.prepend(Module.new { define_method(:binarydir) { binarydir } })
     config = Cask::Config.new(env: {}, explicit: { appdir: appdir })
-    cask = Cask::CaskLoader.load(file, config: config)
+    cask = Cask::CaskLoader.load(QUALIFIED_NAME, config: config)
+    require_same_definition!(cask.sourcefile_path, file)
     raise "The cask does not match the verified versioned DMG." if
       cask.token != "killswitch" || cask.sha256.to_s != expected ||
       cask.url.to_s != "#{release_url(cask.version)}/KillSwitch.dmg"
@@ -160,6 +172,7 @@ module KillSwitchCask
         "HOME"                        => (root/"home").to_s,
         "HOMEBREW_CACHE"              => (root/"cache").to_s,
         "HOMEBREW_LOGS"               => (root/"logs").to_s,
+        "XDG_CONFIG_HOME"             => (root/"config").to_s,
         "HOMEBREW_TEMP"               => (root/"tmp").to_s,
         "HOMEBREW_CASK_OPTS"          => "",
         "HOMEBREW_DEVELOPER"          => "1",
@@ -171,7 +184,10 @@ module KillSwitchCask
         "GITHUB_TOKEN"                => nil,
         "HOMEBREW_GITHUB_API_TOKEN"   => nil,
       }
-      %w[home cache logs tmp].each { |path| (root/path).mkpath }
+      %w[home config cache logs tmp].each { |path| (root/path).mkpath }
+      # Trust only this cask, and only in the disposable Homebrew configuration.
+      raise "Could not trust #{QUALIFIED_NAME} in the disposable Homebrew configuration." unless
+        system(environment, "brew", "trust", "--cask", QUALIFIED_NAME)
       raise "Isolated Homebrew cask installation failed." unless
         system(environment, "brew", "ruby", "--", __FILE__, "--install", file.to_s, root.to_s, expected)
     end
