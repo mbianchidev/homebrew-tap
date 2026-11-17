@@ -20,8 +20,13 @@ cask "shipwatch" do
   caveats do
     <<~EOS
       Shipwatch is ad-hoc signed, not Developer ID signed or notarized.
-      macOS Gatekeeper may block first use; this cask does not bypass that
-      protection. Installation does not start Shipwatch.
+      This cask keeps quarantine, so macOS blocks the first launch.
+      If you trust this tap, open Shipwatch once:
+        1. Double-click Shipwatch in Applications, then click Done.
+        2. Open System Settings > Privacy & Security.
+        3. Under Security, click Open Anyway, then click Open.
+      Installation does not start Shipwatch. Guide:
+        https://github.com/mbianchidev/homebrew-tap/blob/main/docs/macos-security.md
 
       Leave Shipwatch's "Install automatically" setting off for Homebrew version
       tracking. To update with Homebrew:

@@ -21,8 +21,14 @@ cask "killswitch" do
   caveats do
     <<~EOS
       KillSwitch is ad-hoc signed, not Developer ID signed or notarized.
-      macOS Gatekeeper may block the app or killswitchctl; this cask does not
-      bypass that protection. Neither the app nor the CLI is started at install.
+      This cask keeps quarantine, so macOS blocks the first launch.
+      If you trust this tap, open KillSwitch once:
+        1. Double-click KillSwitch in Applications, then click Done.
+        2. Open System Settings > Privacy & Security.
+        3. Under Security, click Open Anyway, then click Open.
+      Approve the app before using killswitchctl. Neither the app nor the
+      CLI is started at install. Guide:
+        https://github.com/mbianchidev/homebrew-tap/blob/main/docs/macos-security.md
 
       Leave the opt-in built-in auto-installer off for Homebrew version tracking.
       To update with Homebrew:

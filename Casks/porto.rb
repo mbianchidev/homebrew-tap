@@ -27,9 +27,14 @@ cask "porto" do
 
   caveats do
     <<~EOS
-      Porto is not Developer ID signed or notarized. macOS Gatekeeper may
-      block first use; this cask preserves quarantine and does not bypass it.
-      Installation does not start Porto, containers, VMs, or daemons.
+      Porto is not Developer ID signed or notarized.
+      This cask keeps quarantine, so macOS blocks the first launch.
+      If you trust this tap, open Porto once:
+        1. Double-click Porto in Applications, then click Done.
+        2. Open System Settings > Privacy & Security.
+        3. Under Security, click Open Anyway, then click Open.
+      Installation does not start Porto, containers, VMs, or daemons. Guide:
+        https://github.com/mbianchidev/homebrew-tap/blob/main/docs/macos-security.md
     EOS
   end
 end

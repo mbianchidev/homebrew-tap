@@ -29,8 +29,8 @@ bundles do not pass complete macOS signature verification. Release-packaging
 corrections are handled upstream. Updater signatures, published checksums and
 GitHub provenance do not replace Apple app signing or notarization.
 The cask retains quarantine and does not re-sign the installed app or disable
-Gatekeeper. If macOS blocks first use, follow upstream security guidance rather
-than removing system protections.
+Gatekeeper. macOS blocks the first launch; follow the click-by-click
+[first launch steps](macos-security.md) rather than removing system protections.
 
 ## Updates and removal
 

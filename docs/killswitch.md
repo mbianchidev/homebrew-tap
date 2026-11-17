@@ -32,21 +32,19 @@ does not launch the app, run the CLI or register a service.
 ## macOS security
 
 **KillSwitch is ad-hoc signed, not Developer ID signed or notarized.** Gatekeeper
-may block the app or its CLI on first use. The cask preserves quarantine and
+blocks the app and its CLI on first use. The cask preserves quarantine and
 does not change macOS security settings.
 
-For a download you have verified and decided to trust, Apple's
-[safe app-opening guidance](https://support.apple.com/en-us/102445)
-describes a per-app exception: after trying to open the app, go to
-**System Settings > Privacy & Security > Open Anyway**, then confirm only if you
-are certain of its source and integrity. Managed devices may not allow this.
+To open it, follow the click-by-click [first launch steps](macos-security.md):
+open KillSwitch once, then click **Open Anyway** in
+**System Settings > Privacy & Security**. Managed devices may not allow this.
 Do not override malware warnings, disable Gatekeeper globally or remove
 quarantine to make the app run.
 
 After macOS permits the app, open it from your chosen Applications directory.
 Review the upstream [CLI guide](https://github.com/mbianchidev/kill-switch/blob/main/docs/cli.md)
-before using cleanup or process-management commands. The bundled CLI remains
-subject to macOS security checks.
+before using cleanup or process-management commands. Approve the app before
+using `killswitchctl`; the bundled CLI remains subject to macOS security checks.
 
 ## Upgrades and removal
 

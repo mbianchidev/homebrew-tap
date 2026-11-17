@@ -27,8 +27,9 @@ Current release bundles are not Developer ID signed or notarized, and the
 Release-packaging corrections are handled upstream; do not treat a matching
 download checksum as proof of Developer ID signing or notarization.
 The cask retains quarantine and does not re-sign downloaded apps, remove
-Gatekeeper protections, or start a privileged helper. If macOS blocks first
-use, follow upstream security guidance rather than disabling system protection.
+Gatekeeper protections, or start a privileged helper. macOS blocks the first
+launch; follow the click-by-click [first launch steps](macos-security.md)
+rather than disabling system protection.
 
 ## Updates and removal
 

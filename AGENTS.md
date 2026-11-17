@@ -10,8 +10,12 @@ Read the [maintainer guide](docs/maintaining.md) before changing anything.
   implementation PRs; only the verified release-only automation merges by itself.
 - Never commit placeholder, guessed or locally rebuilt checksums, or
   `sha256 :no_check`.
-- Never strip quarantine, re-sign apps, run `xattr`, or launch apps, services,
-  VMs or agents from definitions or CI.
+- Never strip quarantine (`xattr`, `postflight_steps` `run` steps or any other
+  route), re-sign apps, or launch apps, services, VMs or agents from definitions
+  or CI. Removing quarantine skips Gatekeeper and XProtect's first-launch checks
+  for everyone using the tap, and Homebrew deliberately dropped
+  `--no-quarantine`. Help users with documentation instead (see
+  [Cask layout](#cask-layout)).
 - Do not run `scripts/ci/test-packages.rb` or the Sendbox lifecycle locally, and
   do not spoof their GitHub-hosted runner guards.
 - Tests use mock data only.
@@ -70,7 +74,8 @@ Every package, formula or cask, needs all of the following in one PR:
    enough, using disposable directories, mock data and qualified names.
 5. **Docs.** Add `docs/<name>.md` and rows in the [README](README.md) and
    [docs index](docs/README.md) package tables, and update the package lists in
-   the [maintainer guide](docs/maintaining.md). Install commands are fully
+   the [maintainer guide](docs/maintaining.md). Non-notarized apps link the
+   [first launch guide](docs/macos-security.md). Install commands are fully
    qualified: `brew install mbianchidev/tap/<name>` or
    `brew install --cask mbianchidev/tap/<name>`.
 
@@ -95,9 +100,15 @@ Every package, formula or cask, needs all of the following in one PR:
   only for verified app data paths.
 - `auto_updates true` only for apps with a working built-in updater, with a
   caveat recommending `brew upgrade --cask --greedy mbianchidev/tap/<token>`.
-- Caveats state the real signing status (ad-hoc is not Developer ID or
-  notarization), that quarantine is preserved and that installation launches
-  nothing. Use `preflight_steps`/`postflight_steps`, never Ruby flight blocks.
+- Apps that are not Developer ID signed and notarized keep quarantine, and
+  their caveats give the click-by-click first launch, as in
+  `Casks/killswitch.rb`: state the real signing status (ad-hoc is not
+  Developer ID or notarization), then double-click the app and click Done,
+  open System Settings > Privacy & Security, click Open Anyway, then Open.
+  Also say installation launches nothing and link
+  [docs/macos-security.md](docs/macos-security.md); add new apps to that
+  guide's list. Use `preflight_steps`/`postflight_steps`, never Ruby flight
+  blocks.
 
 ## Validation
 

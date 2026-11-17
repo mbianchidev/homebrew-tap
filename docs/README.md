@@ -21,6 +21,9 @@ Each guide covers installation, first use, relevant configuration, upgrades,
 removal and upstream documentation. Package versions and checksums are defined
 in [`Formula/`](../Formula) and [`Casks/`](../Casks).
 
+The desktop apps are not notarized; see [First launch on macOS](macos-security.md)
+for the click-by-click **Open Anyway** steps.
+
 ## Maintainers and contributors
 
 The [maintainer guide](maintaining.md) covers repository layout, safe local
