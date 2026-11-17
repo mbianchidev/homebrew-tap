@@ -22,10 +22,11 @@ repositories or local clones.
 ## macOS security
 
 **Shipwatch is ad-hoc signed, not Developer ID signed or notarized.** Gatekeeper
-may block first use. The cask preserves quarantine and does not change macOS
-security settings. Follow the upstream
-[installation guide](https://github.com/mbianchidev/shipwatch/blob/main/docs/installation.md)
-before opening it; do not disable Gatekeeper or remove quarantine.
+blocks the first launch. The cask preserves quarantine and does not change macOS
+security settings. Follow the [first launch steps](macos-security.md)
+(System Settings or one Terminal command) and the upstream
+[installation guide](https://github.com/mbianchidev/shipwatch/blob/main/docs/installation.md);
+do not disable Gatekeeper globally.
 
 ## Updates and removal
 

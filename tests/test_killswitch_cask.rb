@@ -93,6 +93,22 @@ class KillSwitchCaskTest < Minitest::Test
     end
   end
 
+  def test_requires_homebrew_to_load_the_definition_under_test
+    Dir.mktmpdir do |directory|
+      root = Pathname(directory)
+      file = root/"killswitch.rb"
+      loaded = root/"tap-killswitch.rb"
+      file.write("cask \"killswitch\" do\nend\n")
+      loaded.write(file.read)
+      assert_equal loaded, KillSwitchCask.require_same_definition!(loaded.to_s, file)
+      loaded.write("cask \"killswitch\" do\n  version \"9.9.9\"\nend\n")
+      assert_raises(RuntimeError) { KillSwitchCask.require_same_definition!(loaded, file) }
+      [nil, root/"missing.rb", root].each do |path|
+        assert_raises(RuntimeError) { KillSwitchCask.require_same_definition!(path, file) }
+      end
+    end
+  end
+
   def test_snapshot_detects_modified_and_removed_mock_preferences
     Dir.mktmpdir do |directory|
       root = Pathname(directory)
