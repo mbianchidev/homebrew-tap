@@ -5,6 +5,7 @@ require "open3"
 require "socket"
 require "tmpdir"
 require "timeout"
+require_relative "livecheck"
 
 hosted_runner = ENV["TAP_CI_RUNNER_ENVIRONMENT"]
 abort "Package lifecycle checks require a GitHub-hosted runner; received #{hosted_runner.inspect}." unless
@@ -24,6 +25,17 @@ end
 def summary(message)
   puts message
   File.open(ENV.fetch("GITHUB_STEP_SUMMARY"), "a") { |file| file.puts message }
+end
+
+# Upstream releases land between runs, so the strict audit judges only the definition under test.
+# Livecheck still fails when it is broken or the cask is ahead of upstream, and warns for pending updates.
+def audit_cask!(qualified, except: [])
+  run!("brew", "audit", "--cask", "--strict", "--online",
+       "--except=#{(["livecheck_version"] + except).join(",")}", qualified)
+  warning = TapLivecheck.evaluate(capture!("brew", "livecheck", "--cask", "--json", qualified), qualified)
+  puts "::warning::#{warning}" if warning
+rescue RuntimeError => e
+  abort e.message
 end
 
 def compatible?(kind, qualified)
@@ -180,12 +192,12 @@ packages.each do |path|
     run!("python3", "-m", "scripts.ci.package_updates", "--prefetch", token)
     if token == "killswitch"
       # An unrelated core VPN formula shares this explicitly qualified cask's token.
-      run!("brew", "audit", "--cask", "--strict", "--online", "--except=token_conflicts", qualified)
+      audit_cask!(qualified, except: ["token_conflicts"])
       run!("ruby", "#{root}/scripts/ci/killswitch.rb", path)
       next
     end
 
-    run!("brew", "audit", "--cask", "--strict", "--online", qualified)
+    audit_cask!(qualified)
     sentinel = File.join(ENV.fetch("HOME"), "Library", "Application Support", token, "tap-ci-retained.txt")
     abort "Refusing to overwrite existing cask fixture #{sentinel}." if File.exist?(sentinel)
     FileUtils.mkdir_p(File.dirname(sentinel))

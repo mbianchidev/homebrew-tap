@@ -664,6 +664,11 @@ class AutomaticMergeTests(unittest.TestCase):
         self.responses[f"{self.prefix}/commits/{self.head}/status"] = {
             "total_count": 0, "state": "pending", "statuses": [],
         }
+        self.approval_runs = (
+            f"{self.prefix}/actions/runs?event=pull_request&status=action_required"
+            f"&head_sha={self.head}&per_page=100"
+        )
+        self.responses[self.approval_runs] = {"total_count": 0, "workflow_runs": []}
         self.reviews = {
             "reviewThreads": {"nodes": [], "pageInfo": {"hasNextPage": False}},
             "reviews": {"nodes": [], "pageInfo": {"hasNextPage": False}},
@@ -700,12 +705,60 @@ class AutomaticMergeTests(unittest.TestCase):
             return json.dumps({"data": {"repository": {"pullRequest": self.reviews}}})
         if arguments[:4] == ("gh", "api", "--method", "PUT"):
             return json.dumps({"merged": True, "sha": "c" * 40})
+        if arguments[:4] == ("gh", "api", "--method", "DELETE"):
+            return ""
         if arguments[:3] == ("gh", "workflow", "run"):
             return ""
         self.fail(f"Unexpected command: {arguments}")
 
     def assert_no_merge(self):
         self.assertFalse(any(call[:4] == ("gh", "api", "--method", "PUT") for call in self.commands))
+
+    def test_deletes_only_this_updates_jobless_approval_run_before_merging(self):
+        redundant = {
+            "id": 456, "event": "pull_request", "conclusion": "action_required",
+            "head_branch": self.branch, "head_sha": self.head, "path": ".github/workflows/ci.yml",
+            "actor": {"login": "github-actions[bot]"},
+            "head_repository": {"full_name": UPDATES.REPOSITORY},
+        }
+        kept = [
+            redundant | {"id": 457, "head_branch": "automation/package-updates-0000000000000000"},
+            redundant | {"id": 458, "actor": {"login": "mock-maintainer"}},
+            redundant | {"id": 459, "head_repository": {"full_name": "mock/fork"}},
+            redundant | {"id": 460, "path": ".github/workflows/mock.yml"},
+            redundant | {"id": 461},
+        ]
+        self.responses[self.approval_runs] = {"workflow_runs": [redundant, *kept]}
+        for item in (redundant, *kept):
+            self.responses[f"{self.prefix}/actions/runs/{item['id']}/jobs?per_page=1"] = {
+                "total_count": 1 if item["id"] == 461 else 0,
+            }
+        UPDATES.merge_update(123)
+        deletes = [call for call in self.commands if call[:4] == ("gh", "api", "--method", "DELETE")]
+        self.assertEqual(deletes, [("gh", "api", "--method", "DELETE", f"{self.prefix}/actions/runs/456")])
+        put = next(i for i, call in enumerate(self.commands) if call[:4] == ("gh", "api", "--method", "PUT"))
+        self.assertLess(self.commands.index(deletes[0]), put)
+
+    def test_approval_run_cleanup_failure_never_blocks_a_verified_merge(self):
+        run_command = self.run_command
+
+        def failing_delete(*arguments, **kwargs):
+            if arguments[:4] == ("gh", "api", "--method", "DELETE"):
+                raise subprocess.CalledProcessError(1, arguments)
+            return run_command(*arguments, **kwargs)
+
+        self.responses[self.approval_runs] = {"workflow_runs": [{
+            "id": 456, "event": "pull_request", "conclusion": "action_required",
+            "head_branch": self.branch, "head_sha": self.head, "path": ".github/workflows/ci.yml",
+            "actor": {"login": "github-actions[bot]"},
+            "head_repository": {"full_name": UPDATES.REPOSITORY},
+        }]}
+        self.responses[f"{self.prefix}/actions/runs/456/jobs?per_page=1"] = {"total_count": 0}
+        with mock.patch.object(UPDATES, "run", side_effect=failing_delete), \
+                mock.patch("sys.stdout", io.StringIO()) as stdout:
+            UPDATES.merge_update(123)
+        self.assertTrue(any(call[:4] == ("gh", "api", "--method", "PUT") for call in self.commands))
+        self.assertIn("::warning::Could not delete redundant approval-pending PR runs", stdout.getvalue())
 
     def test_merges_verified_bot_release_only_after_all_native_jobs_and_reviews_pass(self):
         UPDATES.merge_update(123)
@@ -721,6 +774,7 @@ class AutomaticMergeTests(unittest.TestCase):
         UPDATES.merge_update(123, dry_run=True)
         self.assert_no_merge()
         self.assertFalse(any(call[:3] == ("gh", "workflow", "run") for call in self.commands))
+        self.assertFalse(any(call[:4] == ("gh", "api", "--method", "DELETE") for call in self.commands))
         UPDATES.verify_release.assert_called_once()
 
     def test_waits_for_the_requesting_ci_run_to_finish_before_merging(self):
@@ -981,6 +1035,8 @@ class RetirementTests(unittest.TestCase):
             f"{self.prefix}/commits/main": {"sha": self.main},
             f"repos/{self.package.repository}/releases/tags/v1.2.4": self.release,
             f"repos/{self.package.repository}/releases/latest": self.release,
+            f"{self.prefix}/actions/runs?event=pull_request&status=action_required"
+            f"&head_sha={self.head}&per_page=100": {"workflow_runs": []},
         }
         self.commands = []
         self.stdout = io.StringIO()

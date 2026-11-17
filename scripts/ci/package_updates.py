@@ -523,6 +523,33 @@ def finished_run(run_id):
         time.sleep(RUN_COMPLETION_INTERVAL)
 
 
+def discard_approval_runs(branch, head):
+    """Delete the redundant token-created PR run before its update PR merges or closes.
+
+    It never starts jobs, and GitHub reports it as failed once the PR closes; the
+    explicitly dispatched Packages run is the real check. Cleanup never blocks updates.
+    """
+    prefix = f"repos/{REPOSITORY}"
+    try:
+        runs = sendbox.api(
+            f"{prefix}/actions/runs?event=pull_request&status=action_required&head_sha={head}&per_page=100"
+        )
+        for item in runs["workflow_runs"]:
+            if (
+                item.get("event") != "pull_request" or item.get("conclusion") != "action_required"
+                or item.get("head_branch") != branch or item.get("head_sha") != head
+                or item.get("path", "").split("@")[0] != ".github/workflows/ci.yml"
+                or (item.get("actor") or {}).get("login") != "github-actions[bot]"
+                or (item.get("head_repository") or {}).get("full_name") != REPOSITORY
+                or sendbox.api(f"{prefix}/actions/runs/{item['id']}/jobs?per_page=1")["total_count"] != 0
+            ):
+                continue
+            run("gh", "api", "--method", "DELETE", f"{prefix}/actions/runs/{item['id']}")
+            print(f"Deleted redundant approval-pending PR run {item['id']} for {branch}.")
+    except (ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
+        print(f"::warning::Could not delete redundant approval-pending PR runs for {branch}: {error}")
+
+
 def merge_update(run_id, dry_run=False):
     if not str(run_id).isdigit() or int(run_id) <= 0:
         raise ValueError("An exact successful package workflow run ID is required.")
@@ -614,6 +641,7 @@ def merge_update(run_id, dry_run=False):
     if dry_run:
         print(f"Would merge verified package update PR #{number} at {head}; no writes.")
         return
+    discard_approval_runs(branch, head)
     response = json.loads(run(
         "gh", "api", "--method", "PUT", f"{prefix}/pulls/{number}/merge",
         "-f", f"sha={head}", "-f", "merge_method=squash",
@@ -710,6 +738,7 @@ def retire_updates():
             except ValueError as error:
                 print(f"::warning::Keeping superseded PR #{number}: {error}")
                 continue
+            discard_approval_runs(branch, head)
             run(
                 "gh", "pr", "close", str(number), "--repo", REPOSITORY,
                 "--comment", (
