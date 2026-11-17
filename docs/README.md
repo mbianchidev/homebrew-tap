@@ -22,7 +22,7 @@ removal and upstream documentation. Package versions and checksums are defined
 in [`Formula/`](../Formula) and [`Casks/`](../Casks).
 
 The desktop apps are not notarized; see [First launch on macOS](macos-security.md)
-for the click-by-click **Open Anyway** steps.
+for the **Open Anyway** steps and the one-line Terminal alternative.
 
 ## Maintainers and contributors
 

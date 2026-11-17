@@ -28,8 +28,8 @@ Release-packaging corrections are handled upstream; do not treat a matching
 download checksum as proof of Developer ID signing or notarization.
 The cask retains quarantine and does not re-sign downloaded apps, remove
 Gatekeeper protections, or start a privileged helper. macOS blocks the first
-launch; follow the click-by-click [first launch steps](macos-security.md)
-rather than disabling system protection.
+launch; follow the [first launch steps](macos-security.md) (System Settings or
+one Terminal command) rather than disabling system protection.
 
 ## Updates and removal
 

@@ -34,6 +34,10 @@ cask "denote" do
         1. Double-click Denote in Applications, then click Done.
         2. Open System Settings > Privacy & Security.
         3. Under Security, click Open Anyway, then click Open.
+      Or run this once in Terminal. It removes quarantine from this app
+      only and skips macOS's first-launch malware check:
+        xattr -d -r com.apple.quarantine "#{appdir}/Denote.app"
+      Repeat after each upgrade.
       Installation does not start Denote or modify existing notebooks. Guide:
         https://github.com/mbianchidev/homebrew-tap/blob/main/docs/macos-security.md
     EOS

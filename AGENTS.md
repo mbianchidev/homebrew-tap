@@ -10,12 +10,12 @@ Read the [maintainer guide](docs/maintaining.md) before changing anything.
   implementation PRs; only the verified release-only automation merges by itself.
 - Never commit placeholder, guessed or locally rebuilt checksums, or
   `sha256 :no_check`.
-- Never strip quarantine (`xattr`, `postflight_steps` `run` steps or any other
-  route), re-sign apps, or launch apps, services, VMs or agents from definitions
-  or CI. Removing quarantine skips Gatekeeper and XProtect's first-launch checks
-  for everyone using the tap, and Homebrew deliberately dropped
-  `--no-quarantine`. Help users with documentation instead (see
-  [Cask layout](#cask-layout)).
+- Never strip quarantine from definitions or CI (`xattr` in
+  `postflight_steps` `run` steps or any other route), re-sign apps, or launch
+  apps, services, VMs or agents. Removing quarantine skips Gatekeeper and
+  XProtect's first-launch checks, and Homebrew deliberately dropped
+  `--no-quarantine`, so that choice belongs to each user. Caveats give them the
+  exact command to run themselves (see [Cask layout](#cask-layout)).
 - Do not run `scripts/ci/test-packages.rb` or the Sendbox lifecycle locally, and
   do not spoof their GitHub-hosted runner guards.
 - Tests use mock data only.
@@ -101,14 +101,18 @@ Every package, formula or cask, needs all of the following in one PR:
 - `auto_updates true` only for apps with a working built-in updater, with a
   caveat recommending `brew upgrade --cask --greedy mbianchidev/tap/<token>`.
 - Apps that are not Developer ID signed and notarized keep quarantine, and
-  their caveats give the click-by-click first launch, as in
-  `Casks/killswitch.rb`: state the real signing status (ad-hoc is not
-  Developer ID or notarization), then double-click the app and click Done,
-  open System Settings > Privacy & Security, click Open Anyway, then Open.
+  their caveats give the first launch, as in `Casks/killswitch.rb`: state the
+  real signing status (ad-hoc is not Developer ID or notarization); the
+  click-by-click path (double-click the app and click Done, open System
+  Settings > Privacy & Security, click Open Anyway, then Open); then the exact
+  per-app command `xattr -d -r com.apple.quarantine "#{appdir}/<App>.app"`,
+  saying it skips the first-launch malware check and must be repeated after
+  each upgrade. Interpolate `#{appdir}` so custom `--appdir` installs print the
+  right path. Never suggest `xattr -c`/`-cr` or disabling Gatekeeper globally.
   Also say installation launches nothing and link
   [docs/macos-security.md](docs/macos-security.md); add new apps to that
-  guide's list. Use `preflight_steps`/`postflight_steps`, never Ruby flight
-  blocks.
+  guide's command table. Use `preflight_steps`/`postflight_steps`, never Ruby
+  flight blocks.
 
 ## Validation
 

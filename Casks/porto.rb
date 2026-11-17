@@ -33,6 +33,10 @@ cask "porto" do
         1. Double-click Porto in Applications, then click Done.
         2. Open System Settings > Privacy & Security.
         3. Under Security, click Open Anyway, then click Open.
+      Or run this once in Terminal. It removes quarantine from this app
+      only and skips macOS's first-launch malware check:
+        xattr -d -r com.apple.quarantine "#{appdir}/Porto.app"
+      Repeat after each upgrade.
       Installation does not start Porto, containers, VMs, or daemons. Guide:
         https://github.com/mbianchidev/homebrew-tap/blob/main/docs/macos-security.md
     EOS

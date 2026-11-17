@@ -7,9 +7,10 @@ by Apple. Homebrew checks each download against its published checksum and keeps
 the macOS quarantine flag, so the first launch is blocked with a warning such as
 "Apple could not verify the app is free of malware".
 
-The tap does not remove quarantine for you. Removing it would also skip the
+The tap does not remove quarantine for you. Removing it also skips the
 Gatekeeper check and the XProtect malware scan that macOS runs on first launch,
-for everyone who installs from this tap.
+so the casks leave that choice to you, one app at a time. Use either the
+System Settings steps or the Terminal command below.
 
 ## Open the app the first time
 
@@ -36,10 +37,32 @@ way from **Privacy & Security**.
 Apple describes these steps in
 [Safely open apps on your Mac](https://support.apple.com/en-us/102445).
 
+## Or use one Terminal command
+
+After `brew install --cask`, run the command for your app once, then open it
+normally. It removes only the `com.apple.quarantine` attribute, only from that
+app, and skips macOS's first-launch malware check for it.
+
+| App | Command |
+| --- | --- |
+| KillSwitch | `xattr -d -r com.apple.quarantine "/Applications/KillSwitch.app"` |
+| Porto | `xattr -d -r com.apple.quarantine "/Applications/Porto.app"` |
+| Denote | `xattr -d -r com.apple.quarantine "/Applications/Denote.app"` |
+| Shipwatch | `xattr -d -r com.apple.quarantine "/Applications/Shipwatch.app"` |
+
+If you installed with `--appdir`, replace `/Applications` with that folder.
+The cask caveats, shown after installation and by
+`brew info --cask mbianchidev/tap/<app>`, print the command with your actual
+folder. A Homebrew upgrade installs a new quarantined copy, so run it again
+after upgrading. If macOS asks whether Terminal may modify apps, allow it in
+**System Settings > Privacy & Security > App Management**, or use the steps
+above instead.
+
 ## When not to continue
 
 - If macOS says the app is damaged or contains malware, click
   **Move to Trash** and report it to the upstream project.
 - If **Open Anyway** is missing, your Mac may be managed by an organization;
   ask your administrator.
-- Do not disable Gatekeeper or remove quarantine with `xattr`.
+- Do not disable Gatekeeper for the whole Mac, and do not clear every
+  attribute with `xattr -c` or `xattr -cr`.

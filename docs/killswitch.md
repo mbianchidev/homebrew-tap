@@ -35,11 +35,17 @@ does not launch the app, run the CLI or register a service.
 blocks the app and its CLI on first use. The cask preserves quarantine and
 does not change macOS security settings.
 
-To open it, follow the click-by-click [first launch steps](macos-security.md):
-open KillSwitch once, then click **Open Anyway** in
-**System Settings > Privacy & Security**. Managed devices may not allow this.
-Do not override malware warnings, disable Gatekeeper globally or remove
-quarantine to make the app run.
+To open it, follow the [first launch steps](macos-security.md): open
+KillSwitch once, then click **Open Anyway** in
+**System Settings > Privacy & Security**, or run the one-line Terminal command
+the cask prints after installation:
+
+```bash
+xattr -d -r com.apple.quarantine "/Applications/KillSwitch.app"
+```
+
+Managed devices may not allow this. Do not override malware warnings or disable
+Gatekeeper globally.
 
 After macOS permits the app, open it from your chosen Applications directory.
 Review the upstream [CLI guide](https://github.com/mbianchidev/kill-switch/blob/main/docs/cli.md)

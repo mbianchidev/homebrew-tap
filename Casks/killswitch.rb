@@ -26,6 +26,10 @@ cask "killswitch" do
         1. Double-click KillSwitch in Applications, then click Done.
         2. Open System Settings > Privacy & Security.
         3. Under Security, click Open Anyway, then click Open.
+      Or run this once in Terminal. It removes quarantine from this app
+      only and skips macOS's first-launch malware check:
+        xattr -d -r com.apple.quarantine "#{appdir}/KillSwitch.app"
+      Repeat after each upgrade.
       Approve the app before using killswitchctl. Neither the app nor the
       CLI is started at install. Guide:
         https://github.com/mbianchidev/homebrew-tap/blob/main/docs/macos-security.md
