@@ -307,7 +307,8 @@ KillSwitch and Shipwatch also keep GitHub latest livecheck for independent
 stable-release auditing. Automated or manual updates verify the actual versioned
 DMG, its GitHub digest and the published checksum before changing the cask's
 version and SHA-256. Keep `auto_updates true` and the documented greedy-upgrade
-behavior while their built-in updaters exist.
+behavior on the KillSwitch, Porto, Denote and Shipwatch casks while their
+built-in updaters exist.
 
 Upstream projects retain their own release tooling and credentials. The scheduled
 tap updater reads public releases and does not reuse their publishing credentials.
