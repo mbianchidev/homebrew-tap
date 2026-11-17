@@ -10,6 +10,7 @@
 | [`Casks/`](../Casks) | KillSwitch, Porto, Denote and Shipwatch desktop apps |
 | [`scripts/ci/`](../scripts/ci) | Package lifecycle checks and verified release updates |
 | [`tests/`](../tests) | Mock-data regression tests |
+| [`AGENTS.md`](../AGENTS.md) | Formula and cask conventions for agents and contributors |
 | [Package workflow](../.github/workflows/ci.yml) | Definition checks and native lifecycle matrix |
 | [Update workflow](../.github/workflows/update-packages.yml) | Hourly/manual verified stable-release update batches |
 | [Merge workflow](../.github/workflows/merge-package-updates.yml) | Trusted-main, CI-gated merges of release-only updates |
@@ -20,6 +21,9 @@ upstream applications. Keep their release tooling in their source repositories.
 ## Package changes
 
 Keep changes focused on the affected package, its tests and its documentation.
+Follow the formula and cask checklist in [`AGENTS.md`](../AGENTS.md), including
+loading packages by their qualified `mbianchidev/tap/<name>` name: Homebrew
+7.0.14 and newer refuse formula and cask file paths.
 Use published, versioned artifact URLs and verified SHA-256 checksums; never
 commit placeholders for unpublished assets. Preserve supported platforms,
 signed payload bytes and existing user data.
