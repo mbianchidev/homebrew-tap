@@ -67,7 +67,9 @@ From the repository root:
 ```bash
 ruby -c scripts/ci/test-packages.rb
 ruby -c scripts/ci/killswitch.rb
+ruby -c scripts/ci/livecheck.rb
 ruby tests/test_killswitch_cask.rb
+ruby tests/test_livecheck.rb
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
 brew style --except-cops=FormulaAuditStrict,FormulaAudit/ComponentsOrder Formula/sendbox.rb
 brew style Formula/sql-not-so-lite.rb Casks/killswitch.rb
@@ -112,6 +114,15 @@ x86_64/aarch64 runners. Strict online DMG cask audits run on macOS because they
 need `hdiutil`. Packages remain independent; an unavailable platform is reported
 as skipped rather than blocking unrelated packages.
 
+Cask audits skip only `livecheck_version`, which compares the definition with
+the newest upstream release at that moment. Upstream projects release often, so
+that check failed unrelated PRs and pushes until the updater landed each
+release, and update CI whenever a newer release appeared while it ran. A
+separate `brew livecheck` step still fails when livecheck cannot resolve a
+version or the cask is newer than upstream, and only warns when an update is
+pending. The hourly updater owns freshness, and the merger refuses outdated
+batches.
+
 Ubuntu x86_64 jobs follow `ubuntu-latest`. GitHub provides only versioned
 [Ubuntu ARM runner labels](https://docs.github.com/en/actions/reference/runners/github-hosted-runners),
 so native ARM coverage uses `ubuntu-24.04-arm`, not an unsupported
@@ -132,10 +143,10 @@ database, stops the temporary daemon and checks uninstall/data preservation.
 Its home and scan root are temporary fixtures, not the runner's actual data.
 No browser is opened.
 
-KillSwitch uses the same isolated lifecycle check available locally. Only
-`token_conflicts` is excepted from its strict online audit: the explicitly
-qualified cask shares a token with an unrelated core VPN formula. Normal token
-syntax and all other audit checks remain enabled.
+KillSwitch uses the same isolated lifecycle check available locally. Its strict
+online audit also excepts `token_conflicts`: the explicitly qualified cask
+shares a token with an unrelated core VPN formula. Normal token syntax and all
+other audit checks remain enabled.
 
 Draft pull requests run package CI. Obsolete runs are canceled, matrices fail
 fast, and package downloads are cached by OS/architecture. Validation and
@@ -181,8 +192,9 @@ update is published.
 The updater changes only versions, versioned release URLs where necessary and
 checksums. All pending releases are verified before any definition is written and
 published together in one ready PR on `automation/package-updates-<digest>`.
-Batching prevents simultaneous releases from blocking each other's strict
-full-tap audits. An incomplete or invalid candidate fails the batch explicitly.
+Batching gives simultaneous releases one native CI run and one merge, since the
+merger accepts only batches matching every latest release. An incomplete or
+invalid candidate fails the batch explicitly.
 The branch identity binds the exact main revision and definition bytes. Matching
 branches and PRs are reused after interrupted publication or CI dispatch; closed
 or merged PRs are not duplicated, and unexpected branch edits are never replaced
@@ -199,7 +211,12 @@ merge jobs. GitHub does not run push CI for token-created commits, and
 token-created PR workflows wait for approval, so the updater explicitly
 dispatches the existing **Packages** workflow on the exact update branch. The
 PR's own approval-pending run is redundant: do not approve it, since a second
-in-progress check set only delays the merge. All native lifecycle checks and
+in-progress check set only delays the merge. It never starts jobs, and GitHub
+reports it as failed once the PR closes, so the merger and updater delete it
+just before merging or closing a generated update. They delete only jobless,
+approval-pending `ci.yml` runs from `github-actions[bot]` on that exact update
+branch and head; a cleanup error is a warning and never blocks the update. All
+native lifecycle checks and
 strict cask audits remain enabled. Existing failed current-head CI is reported
 for attention, not silently retried or accepted. The full tap keeps its ARM
 macOS and x86_64/aarch64 Linux lifecycle coverage.

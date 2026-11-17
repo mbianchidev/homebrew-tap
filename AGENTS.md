@@ -46,9 +46,12 @@ trust only that package. Anything else that loads a package (`brew ruby`,
 `Formulary`, `CaskLoader`) needs prior per-package trust:
 `brew trust --formula mbianchidev/tap/<name>` or `--cask`.
 
-When a check isolates `HOME`, also isolate `XDG_CONFIG_HOME` and trust only the
-package under test in that disposable configuration. Never trust the whole tap
-in CI, and never set `HOMEBREW_NO_REQUIRE_TAP_TRUST`.
+`Homebrew/actions/setup-homebrew` trusts the checked-out tap in the disposable
+runner's own configuration, so CI `brew` commands can load the revision under
+test. Do not add further trust in workflows or scripts. When a check isolates
+`HOME`, also isolate `XDG_CONFIG_HOME` and trust only the package under test in
+that disposable configuration. Never trust the tap on a maintainer's machine on
+their behalf, and never set `HOMEBREW_NO_REQUIRE_TAP_TRUST`.
 
 ## Adding or changing a package
 
@@ -119,4 +122,7 @@ Every package, formula or cask, needs all of the following in one PR:
 Run the [local checks](docs/maintaining.md#local-checks), then let PR CI run
 `brew style`, `brew readall --os=all --arch=all --aliases mbianchidev/tap`,
 strict online audits and the native lifecycle matrix. Read and fix every CI
-failure and warning before asking for review.
+failure and warning before asking for review. Cask audits skip only
+`livecheck_version`, so a pending upstream release is a warning, not a failure;
+do not re-enable it or treat that warning as a reason to bump versions by hand,
+since the updater owns releases.
