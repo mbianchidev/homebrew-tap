@@ -1,6 +1,6 @@
 cask "stainless" do
-  version "0.1.0-preview.4"
-  sha256 "53e158a6bc133929eacb6ce65729ebaf3ac2d1bb55173d5c0e10432ac90b1c51"
+  version "0.1.0-preview.8"
+  sha256 "3612d7a27d3837a04f8cecfb1c95c90cd7a851a6094c901f5f32caf7d3fced60"
 
   url "https://github.com/mbianchidev/stainless/releases/download/stainless-preview-v#{version}/Stainless-#{version}-macos-arm64.dmg"
   name "Stainless"
