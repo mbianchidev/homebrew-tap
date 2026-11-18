@@ -3,10 +3,10 @@ name: Packages
 on:
   push:
     branches: [main]
-    paths: ["Formula/**", "Casks/**", "scripts/ci/**", "tests/**", ".github/workflows/**"]
+    paths: ["Formula/**", "Casks/**", "audit_exceptions/**", "scripts/ci/**", "tests/**", ".github/workflows/**"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["Formula/**", "Casks/**", "scripts/ci/**", "tests/**", ".github/workflows/**"]
+    paths: ["Formula/**", "Casks/**", "audit_exceptions/**", "scripts/ci/**", "tests/**", ".github/workflows/**"]
   workflow_dispatch:
 
 concurrency:

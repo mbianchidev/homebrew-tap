@@ -68,9 +68,10 @@ Every package, formula or cask, needs all of the following in one PR:
    file or manifest.
 3. **Updater registration.** Add a `Package` entry to `PACKAGES` in
    `scripts/ci/package_updates.py` with the repository, asset name templates and
-   checksum manifest (or `single_dmg=True`), plus mock-data cases in
-   `tests/test_package_updates.py`. The updater rewrites definitions with exact
-   patterns, so keep the layouts below.
+   checksum manifest (or `single_dmg=True`), plus `tag_prefix` for tags other
+   than `vX.Y.Z` and `preview=True` for prerelease-only projects. Add mock-data
+   cases in `tests/test_package_updates.py`. The updater rewrites definitions
+   with exact patterns, so keep the layouts below.
 4. **Lifecycle coverage.** `scripts/ci/test-packages.rb` discovers packages and
    runs install, test and uninstall on ARM macOS and Linux x86_64/aarch64. Add
    a package-specific check under `scripts/ci/` only when the default is not
@@ -95,12 +96,16 @@ Every package, formula or cask, needs all of the following in one PR:
 
 ### Cask layout
 
-- `version` first. A single universal DMG uses a top-level `sha256` and a URL
-  interpolating `#{version}`, with an adjacent bare-digest `<asset>.sha256`
-  (`single_dmg`). Per-architecture DMGs use `on_arm`/`on_intel` blocks with
+- `version` first. A single DMG, universal or Apple silicon only, uses a
+  top-level `sha256` and a URL interpolating `#{version}` (`single_dmg`),
+  checked against an adjacent bare-digest `<asset>.sha256` or the release's
+  checksum manifest. Per-architecture DMGs use `on_arm`/`on_intel` blocks with
   `sha256`, a blank line, then the interpolated `url` (see `Casks/porto.rb`).
 - `livecheck` with `strategy :github_latest`, `depends_on macos:`, and a `zap`
-  only for verified app data paths.
+  only for app data paths the upstream docs name. Prerelease-only projects
+  instead use a `:github_releases` livecheck limited to their prerelease tags
+  and an entry in `audit_exceptions/github_prerelease_allowlist.json` (see
+  `Casks/stainless.rb`).
 - `auto_updates true` only for apps with a working built-in updater, with a
   caveat recommending `brew upgrade --cask --greedy mbianchidev/tap/<token>`.
 - Apps that are not Developer ID signed and notarized keep quarantine, and

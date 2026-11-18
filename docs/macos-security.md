@@ -2,10 +2,10 @@
 
 [Documentation](README.md)
 
-KillSwitch, Porto, Denote and Shipwatch are not Developer ID signed or notarized
-by Apple. Homebrew checks each download against its published checksum and keeps
-the macOS quarantine flag, so the first launch is blocked with a warning such as
-"Apple could not verify the app is free of malware".
+KillSwitch, Porto, Denote, Shipwatch and Stainless are not Developer ID signed or
+notarized by Apple. Homebrew checks each download against its published checksum
+and keeps the macOS quarantine flag, so the first launch is blocked with a warning
+such as "Apple could not verify the app is free of malware".
 
 The tap does not remove quarantine for you. Removing it also skips the
 Gatekeeper check and the XProtect malware scan that macOS runs on first launch,
@@ -49,6 +49,7 @@ app, and skips macOS's first-launch malware check for it.
 | Porto | `xattr -d -r com.apple.quarantine "/Applications/Porto.app"` |
 | Denote | `xattr -d -r com.apple.quarantine "/Applications/Denote.app"` |
 | Shipwatch | `xattr -d -r com.apple.quarantine "/Applications/Shipwatch.app"` |
+| Stainless | `xattr -d -r com.apple.quarantine "/Applications/Stainless.app"` |
 
 If you installed with `--appdir`, replace `/Applications` with that folder.
 The cask caveats, shown after installation and by
