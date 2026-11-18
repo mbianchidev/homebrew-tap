@@ -13,18 +13,33 @@ from unittest import mock
 from scripts.ci import package_updates as UPDATES
 
 
+def mock_version(package, version):
+    """Map a mock stable version to the first preview on prerelease-only channels."""
+    if package.preview and UPDATES.sendbox.STABLE.fullmatch(version):
+        return f"{version}-preview.1"
+    return version
+
+
+def latest_response(package, release):
+    """Return the API path and mock response that `latest_release` reads for a package."""
+    if package.preview:
+        return f"repos/{package.repository}/releases?per_page=100", [release]
+    return f"repos/{package.repository}/releases/latest", release
+
+
 def mock_definition(package, version="1.2.3"):
+    version = mock_version(package, version)
     lines = ['class MockPackage', f'  version "{version}"']
     if package.single_dmg:
         lines.extend([
             f'  sha256 "{"a" * 64}"',
-            f'  url "https://github.com/{package.repository}/releases/download/v#{{version}}/{package.templates[0]}"',
+            f'  url "{package.release_url("#{version}", package.templates[0].format(version="#{version}"))}"',
         ])
     else:
         url_version = "#{version}" if package.name == "sendbox" or package.path.startswith("Casks/") else version
         for name in package.asset_names(url_version):
             fields = [
-                f'    url "https://github.com/{package.repository}/releases/download/v{url_version}/{name}"',
+                f'    url "{package.release_url(url_version, name)}"',
                 f'    sha256 "{"a" * 64}"',
             ]
             lines.extend([fields[1], "", fields[0]] if package.path.startswith("Casks/") else fields)
@@ -33,6 +48,7 @@ def mock_definition(package, version="1.2.3"):
 
 
 def mock_release(package, version="9.8.7"):
+    version = mock_version(package, version)
     contents = {
         name: f"mock artifact {name}\n".encode()
         for name in package.asset_names(version)
@@ -52,15 +68,14 @@ def mock_release(package, version="9.8.7"):
                 else f"{checksum}  {name}\n"
             ).encode()
     release = {
-        "tag_name": f"v{version}",
+        "tag_name": package.tag(version),
         "draft": False,
-        "prerelease": False,
+        "prerelease": package.preview,
         "assets": [
             {
                 "name": name,
                 "digest": f"sha256:{hashlib.sha256(data).hexdigest()}",
-                "browser_download_url":
-                    f"https://github.com/{package.repository}/releases/download/v{version}/{name}",
+                "browser_download_url": package.release_url(version, name),
             }
             for name, data in contents.items()
         ],
@@ -73,12 +88,12 @@ class ReleaseUpdateTests(unittest.TestCase):
         for package in UPDATES.PACKAGES.values():
             with self.subTest(package=package.name):
                 original = mock_definition(package)
-                current = UPDATES.current_version(original)
+                current = UPDATES.current_version(package, original)
                 release, _ = mock_release(package)
                 version, updated = UPDATES.prepare_update(package, original, release)
-                self.assertEqual(version, "9.8.7")
+                self.assertEqual(version, mock_version(package, "9.8.7"))
                 self.assertNotEqual(original, updated)
-                self.assertEqual(UPDATES.current_version(updated), version)
+                self.assertEqual(UPDATES.current_version(package, updated), version)
                 old_digests = {}
                 for name in package.asset_names(current):
                     if package.name == "sendbox":
@@ -93,20 +108,55 @@ class ReleaseUpdateTests(unittest.TestCase):
     def test_same_or_older_releases_do_not_update(self):
         for package in UPDATES.PACKAGES.values():
             original = mock_definition(package)
-            for version in (UPDATES.current_version(original), "0.0.0"):
+            for version in (UPDATES.current_version(package, original), "0.0.0"):
                 with self.subTest(package=package.name, version=version):
                     release, _ = mock_release(package, version)
                     self.assertIsNone(UPDATES.prepare_update(package, original, release))
 
     def test_rejects_nonstable_or_unpublished_releases(self):
-        release, _ = mock_release(UPDATES.PACKAGES["killswitch"])
+        package = UPDATES.PACKAGES["killswitch"]
+        release, _ = mock_release(package)
         for change in (
             {"draft": True}, {"prerelease": True}, {"tag_name": "v9.8.7-rc.1"},
             {"tag_name": "9.8.7"}, {"tag_name": "v09.8.7"},
             {"tag_name": "v9.8.7+build"}, {"draft": None},
         ):
             with self.subTest(change=change), self.assertRaises(ValueError):
-                UPDATES.release_version(release | change)
+                UPDATES.release_version(package, release | change)
+
+    def test_preview_channel_accepts_only_its_published_preview_prereleases(self):
+        package = UPDATES.PACKAGES["stainless"]
+        release, _ = mock_release(package)
+        self.assertEqual(UPDATES.release_version(package, release), "9.8.7-preview.1")
+        for change in (
+            {"draft": True}, {"prerelease": False}, {"prerelease": None},
+            {"tag_name": "v9.8.7-preview.1"}, {"tag_name": "stainless-preview-v9.8.7"},
+            {"tag_name": "stainless-preview-v9.8.7-preview.0"},
+            {"tag_name": "stainless-preview-v9.8.7-rc.1"},
+            {"tag_name": "stainless-preview-v09.8.7-preview.1"},
+        ):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                UPDATES.release_version(package, release | change)
+
+    def test_latest_preview_is_the_highest_published_preview_version(self):
+        package = UPDATES.PACKAGES["stainless"]
+        releases = [mock_release(package, f"0.1.0-preview.{build}")[0] for build in (9, 10, 11)]
+        releases[2]["draft"] = True
+        stable = mock_release(UPDATES.PACKAGES["killswitch"], "10.0.0")[0]
+        path = f"repos/{package.repository}/releases?per_page=100"
+        with mock.patch.object(UPDATES.sendbox, "api", return_value=[releases[2], releases[0], stable, releases[1]]):
+            self.assertIs(UPDATES.latest_release(package), releases[1])
+            UPDATES.sendbox.api.assert_called_once_with(path)
+        original = mock_definition(package, "0.1.0-preview.9")
+        self.assertEqual(UPDATES.prepare_update(package, original, releases[1])[0], "0.1.0-preview.10")
+        newer = UPDATES.prepare_update(package, original, releases[1])[1]
+        self.assertIsNone(UPDATES.prepare_update(package, newer, releases[0]))
+        unmarked = releases[0] | {"prerelease": False}
+        for response in ([], [stable], [releases[1], unmarked]):
+            with self.subTest(response=response), \
+                    mock.patch.object(UPDATES.sendbox, "api", return_value=response), \
+                    self.assertRaises(ValueError):
+                UPDATES.latest_release(package)
 
     def test_rejects_missing_duplicate_unpinned_and_invalid_assets(self):
         for package in UPDATES.PACKAGES.values():
@@ -150,7 +200,7 @@ class ReleaseUpdateTests(unittest.TestCase):
 
     def verify(self, package, release, contents):
         def download(*arguments, **kwargs):
-            self.assertEqual(arguments[:3], ("gh", "release", "download"))
+            self.assertEqual(arguments[:4], ("gh", "release", "download", release["tag_name"]))
             name = arguments[arguments.index("--pattern") + 1]
             output = Path(arguments[arguments.index("--output") + 1])
             output.write_bytes(contents[name])
@@ -160,7 +210,7 @@ class ReleaseUpdateTests(unittest.TestCase):
             UPDATES.verify_release(package, release)
             self.assertEqual(
                 attestation.call_count,
-                len(package.asset_names(UPDATES.release_version(release)))
+                len(package.asset_names(UPDATES.release_version(package, release)))
                 if package.name == "sendbox" else 0,
             )
 
@@ -189,7 +239,7 @@ class ReleaseUpdateTests(unittest.TestCase):
     def test_rejects_changed_download_bytes(self):
         for package in UPDATES.PACKAGES.values():
             release, contents = mock_release(package)
-            contents[package.asset_names("9.8.7")[0]] = b"altered mock bytes"
+            contents[package.asset_names(mock_version(package, "9.8.7"))[0]] = b"altered mock bytes"
             with self.subTest(package=package.name), self.assertRaisesRegex(ValueError, "digest"):
                 self.verify(package, release, contents)
 
@@ -197,7 +247,7 @@ class ReleaseUpdateTests(unittest.TestCase):
         for package in UPDATES.PACKAGES.values():
             for duplicate in (False, True):
                 release, contents = mock_release(package)
-                name = package.checksum_names("9.8.7")[0]
+                name = package.checksum_names(mock_version(package, "9.8.7"))[0]
                 contents[name] = (
                     contents[name] * 2 if duplicate
                     else contents[name].replace(contents[name][:64], b"0" * 64, 1)
@@ -277,7 +327,8 @@ class ReleaseUpdateTests(unittest.TestCase):
                 path = root / package.path
                 path.parent.mkdir(exist_ok=True)
                 path.write_text(mock_definition(package))
-                releases[f"repos/{package.repository}/releases/latest"] = mock_release(package)[0]
+                api_path, response = latest_response(package, mock_release(package)[0])
+                releases[api_path] = response
             with mock.patch.object(UPDATES, "ROOT", root), \
                     mock.patch.object(UPDATES, "require_hosted_main"), \
                     mock.patch.object(UPDATES, "retire_updates"), \
@@ -318,22 +369,27 @@ class CachePreparationTests(unittest.TestCase):
                 "GITHUB_REPOSITORY": UPDATES.REPOSITORY,
             }),
             mock.patch.object(UPDATES, "run", side_effect=self.run_command),
-            mock.patch.object(UPDATES.sendbox, "api", side_effect=lambda path: self.release),
+            mock.patch.object(UPDATES.sendbox, "api", side_effect=self.api),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
 
+    def api(self, path):
+        self.assertEqual(path, f"repos/{self.package.repository}/releases/tags/{self.release['tag_name']}")
+        return self.release
+
     def configure(self, package):
         self.package = package
         self.release, self.contents = mock_release(package)
-        name = package.asset_names("9.8.7")[0]
+        version = mock_version(package, "9.8.7")
+        name = package.asset_names(version)[0]
         asset = next(asset for asset in self.release["assets"] if asset["name"] == name)
         asset["size"] = len(self.contents[name])
         self.info = (
-            {"casks": [{"token": package.name, "version": "9.8.7",
+            {"casks": [{"token": package.name, "version": version,
                         "url": asset["browser_download_url"], "sha256": asset["digest"][7:]}]}
             if package.path.startswith("Casks/") else
-            {"formulae": [{"name": package.name, "versions": {"stable": "9.8.7"},
+            {"formulae": [{"name": package.name, "versions": {"stable": version},
                           "urls": {"stable": {"url": asset["browser_download_url"],
                                               "checksum": asset["digest"][7:]}}}]}
         )
@@ -346,7 +402,7 @@ class CachePreparationTests(unittest.TestCase):
             return str(self.root)
         if arguments[:2] == ("brew", "--cache"):
             return str(self.target)
-        if arguments[:3] == ("gh", "release", "download"):
+        if arguments[:4] == ("gh", "release", "download", self.release["tag_name"]):
             name = arguments[arguments.index("--pattern") + 1]
             Path(arguments[arguments.index("--output") + 1]).write_bytes(self.contents[name])
             return ""
@@ -358,7 +414,10 @@ class CachePreparationTests(unittest.TestCase):
                 self.configure(package)
                 self.target = self.root / "downloads" / f"mock-{package.name}"
                 UPDATES.prefetch(package)
-                self.assertEqual(self.target.read_bytes(), self.contents[package.asset_names("9.8.7")[0]])
+                self.assertEqual(
+                    self.target.read_bytes(),
+                    self.contents[package.asset_names(mock_version(package, "9.8.7"))[0]],
+                )
                 self.commands.clear()
                 UPDATES.prefetch(package)
                 self.assertFalse(any(call[:3] == ("gh", "release", "download") for call in self.commands))
@@ -618,9 +677,11 @@ class AutomaticMergeTests(unittest.TestCase):
             path.parent.mkdir(exist_ok=True)
             release, _ = mock_release(package, "1.2.3")
             path.write_text(UPDATES.update_text(
-                package, mock_definition(package), "1.2.3", UPDATES.release_digests(package, release),
+                package, mock_definition(package), mock_version(package, "1.2.3"),
+                UPDATES.release_digests(package, release),
             ))
-            self.responses[f"repos/{package.repository}/releases/latest"] = release
+            api_path, response = latest_response(package, release)
+            self.responses[api_path] = response
         original = (self.root / self.package.path).read_text()
         _, self.updated = UPDATES.prepare_update(self.package, original, self.release)
         self.branch = UPDATES.update_branch([(self.package, self.release, self.updated)], self.base)
@@ -800,7 +861,8 @@ class AutomaticMergeTests(unittest.TestCase):
                 package, (self.root / package.path).read_text(), release,
             )
             updates.append((package, release, updated))
-            self.responses[f"repos/{package.repository}/releases/latest"] = release
+            api_path, response = latest_response(package, release)
+            self.responses[api_path] = response
             self.responses[f"{self.prefix}/contents/{package.path}?ref={self.head}"] = {
                 "encoding": "base64", "content": base64.b64encode(updated.encode()).decode(),
             }
@@ -867,10 +929,10 @@ class AutomaticMergeTests(unittest.TestCase):
         self.assert_no_merge()
 
     def test_rejects_stale_changed_or_unchanged_package_release(self):
-        for package in (self.package, UPDATES.PACKAGES["sendbox"]):
+        for package in (self.package, UPDATES.PACKAGES["sendbox"], UPDATES.PACKAGES["stainless"]):
             release, _ = mock_release(package, "10.0.0")
             with self.subTest(package=package.name), mock.patch.dict(
-                self.responses, {f"repos/{package.repository}/releases/latest": release},
+                self.responses, dict([latest_response(package, release)]),
             ), self.assertRaises(ValueError):
                 UPDATES.merge_update(123)
             self.assert_no_merge()
