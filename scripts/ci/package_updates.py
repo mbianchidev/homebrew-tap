@@ -1,4 +1,4 @@
-"""Verify stable releases and automate CI-gated, release-only package updates."""
+"""Verify published releases and automate CI-gated, release-only package updates."""
 
 import argparse
 import base64
@@ -22,6 +22,7 @@ run = sendbox.run
 DIGEST = re.compile(r"[0-9a-f]{64}")
 COMMIT = re.compile(r"[0-9a-f]{40}")
 UPDATE_BRANCH = re.compile(r"automation/package-updates-[0-9a-f]{16}")
+PREVIEW = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-preview\.([1-9][0-9]*)")
 CI_JOBS = {
     "validate",
     "Package lifecycle (macos-latest)",
@@ -39,8 +40,33 @@ class Package:
     repository: str
     templates: tuple[str, ...]
     manifest: str | tuple[str, ...] | None = None
-    # One unversioned universal DMG, a top-level cask checksum and a bare-digest `.sha256`.
+    # One DMG with a top-level cask checksum; without a manifest, a bare-digest `.sha256`.
     single_dmg: bool = False
+    tag_prefix: str = "v"
+    # Prerelease-only projects publish `X.Y.Z-preview.N` GitHub prereleases instead of stable releases.
+    preview: bool = False
+
+    @property
+    def channel(self):
+        return "preview" if self.preview else "stable"
+
+    @property
+    def tag_format(self):
+        return self.tag("X.Y.Z-preview.N" if self.preview else "X.Y.Z")
+
+    def tag(self, version):
+        return f"{self.tag_prefix}{version}"
+
+    def release_url(self, version, name):
+        return f"https://github.com/{self.repository}/releases/download/{self.tag(version)}/{name}"
+
+    def parse_version(self, version):
+        if not self.preview:
+            return sendbox.stable_version(version)
+        match = PREVIEW.fullmatch(version) if isinstance(version, str) else None
+        if not match:
+            raise ValueError(f"Not a {self.name} preview version: {version}")
+        return tuple(map(int, match.groups()))
 
     def asset_names(self, version):
         return tuple(template.format(version=version) for template in self.templates)
@@ -82,33 +108,54 @@ PACKAGES = {
         "shipwatch", "Casks/shipwatch.rb", "mbianchidev/shipwatch", ("Shipwatch.dmg",),
         single_dmg=True,
     ),
+    "stainless": Package(
+        "stainless", "Casks/stainless.rb", "mbianchidev/stainless",
+        ("Stainless-{version}-macos-arm64.dmg",), "SHA256SUMS",
+        single_dmg=True, tag_prefix="stainless-preview-v", preview=True,
+    ),
 }
 
 
-def current_version(text):
+def current_version(package, text):
     versions = sendbox.VERSION_LINE.findall(text)
     if len(versions) != 1:
-        raise ValueError("Expected exactly one stable package version.")
-    sendbox.stable_version(versions[0])
+        raise ValueError(f"Expected exactly one {package.channel} package version.")
+    package.parse_version(versions[0])
     return versions[0]
 
 
-def release_version(release):
+def release_version(package, release):
     if not isinstance(release, dict):
         raise ValueError("Expected GitHub release metadata.")
     tag = release.get("tag_name")
     if (
-        not isinstance(tag, str) or not tag.startswith("v")
-        or release.get("draft") is not False or release.get("prerelease") is not False
+        not isinstance(tag, str) or not tag.startswith(package.tag_prefix)
+        or release.get("draft") is not False or release.get("prerelease") is not package.preview
     ):
-        raise ValueError("Expected a published stable vX.Y.Z release.")
-    version = tag.removeprefix("v")
-    sendbox.stable_version(version)
+        raise ValueError(f"Expected a published {package.channel} {package.tag_format} release.")
+    version = tag.removeprefix(package.tag_prefix)
+    package.parse_version(version)
     return version
 
 
+def latest_release(package):
+    if not package.preview:
+        return sendbox.api(f"repos/{package.repository}/releases/latest")
+    # GitHub's latest release excludes prereleases, so take the highest published preview.
+    releases = sendbox.api(f"repos/{package.repository}/releases?per_page=100")
+    if not isinstance(releases, list) or any(not isinstance(release, dict) for release in releases):
+        raise ValueError("Expected GitHub release metadata.")
+    candidates = [
+        release for release in releases
+        if release.get("draft") is False and str(release.get("tag_name")).startswith(package.tag_prefix)
+    ]
+    if not candidates:
+        raise ValueError(f"{package.repository} has no published {package.tag_format} release.")
+    return max(candidates, key=lambda release: package.parse_version(release_version(package, release)))
+
+
 def release_digests(package, release):
-    version = release_version(release)
+    version = release_version(package, release)
     assets = release.get("assets")
     if not isinstance(assets, list) or any(not isinstance(asset, dict) for asset in assets):
         raise ValueError("Expected published release assets.")
@@ -118,7 +165,7 @@ def release_digests(package, release):
         if len(matches) != 1:
             raise ValueError(f"Expected one published asset: {name}")
         asset = matches[0]
-        expected_url = f"https://github.com/{package.repository}/releases/download/v{version}/{name}"
+        expected_url = package.release_url(version, name)
         digest = asset.get("digest")
         if asset.get("browser_download_url") != expected_url:
             raise ValueError(f"Expected a canonical versioned URL for {name}")
@@ -132,13 +179,12 @@ def definition_pattern(package, version, name):
     if package.single_dmg:
         return re.compile(r'^  sha256 "(?P<digest>[0-9a-f]{64})"$', re.MULTILINE)
     if package.path.startswith("Casks/"):
-        asset = name.replace(version, "#{version}")
-        url = f"https://github.com/{package.repository}/releases/download/v#{{version}}/{asset}"
+        url = package.release_url("#{version}", name.replace(version, "#{version}"))
         return re.compile(
             r'^(?P<indent>[ \t]*)sha256 "(?P<digest>[0-9a-f]{64})"\n\n[ \t]*url "'
             + re.escape(url) + r'"$', re.MULTILINE,
         )
-    url = f"https://github.com/{package.repository}/releases/download/v{version}/{name}"
+    url = package.release_url(version, name)
     return re.compile(
         r'^(?P<indent>[ \t]*)url "' + re.escape(url)
         + r'"\n[ \t]*sha256 "(?P<digest>[0-9a-f]{64})"$',
@@ -147,15 +193,15 @@ def definition_pattern(package, version, name):
 
 
 def update_text(package, text, version, digests):
-    current = current_version(text)
-    sendbox.stable_version(version)
+    current = current_version(package, text)
+    package.parse_version(version)
     if package.name == "sendbox":
         return sendbox.with_release(text, version, {
             target: digests[f"sendbox-{version}-{target}.tar.gz"]
             for target in sendbox.PLATFORMS
         })
     if package.single_dmg:
-        expected = f"https://github.com/{package.repository}/releases/download/v#{{version}}/{package.templates[0]}"
+        expected = package.release_url("#{version}", package.templates[0].format(version="#{version}"))
         if re.findall(r'^  url "([^"]+)"$', text, re.MULTILINE) != [expected]:
             raise ValueError(f"Expected one canonical versioned {package.name} cask URL.")
     for old_name, name in zip(package.asset_names(current), package.asset_names(version)):
@@ -169,10 +215,9 @@ def update_text(package, text, version, digests):
             replacement = f'  sha256 "{digest}"'
         else:
             if package.path.startswith("Casks/"):
-                asset = name.replace(version, "#{version}")
-                url = f"https://github.com/{package.repository}/releases/download/v#{{version}}/{asset}"
+                url = package.release_url("#{version}", name.replace(version, "#{version}"))
             else:
-                url = f"https://github.com/{package.repository}/releases/download/v{version}/{name}"
+                url = package.release_url(version, name)
             indent = pattern.search(text).group("indent")
             replacement = (
                 f'{indent}sha256 "{digest}"\n\n{indent}url "{url}"'
@@ -184,9 +229,9 @@ def update_text(package, text, version, digests):
 
 
 def prepare_update(package, original, release):
-    version = release_version(release)
-    current = current_version(original)
-    if sendbox.stable_version(version) <= sendbox.stable_version(current):
+    version = release_version(package, release)
+    current = current_version(package, original)
+    if package.parse_version(version) <= package.parse_version(current):
         print(f"{package.name}: latest {version} is not newer than {current}; no update.")
         return None
     updated = update_text(package, original, version, release_digests(package, release))
@@ -214,14 +259,14 @@ def published_checksums(text, single_asset=None):
 
 
 def verify_release(package, release):
-    version = release_version(release)
+    version = release_version(package, release)
     digests = release_digests(package, release)
     with tempfile.TemporaryDirectory(prefix="tap-release-verification-") as directory:
         root = Path(directory)
         for name, expected in digests.items():
             path = root / name
             run(
-                "gh", "release", "download", f"v{version}", "--repo", package.repository,
+                "gh", "release", "download", package.tag(version), "--repo", package.repository,
                 "--pattern", name, "--output", path,
             )
             with path.open("rb") as artifact:
@@ -230,7 +275,7 @@ def verify_release(package, release):
                 raise ValueError(f"Downloaded bytes disagree with GitHub digest for {name}")
         published = {}
         for name in package.checksum_names(version):
-            single = package.asset_names(version)[0] if package.single_dmg else None
+            single = package.asset_names(version)[0] if package.single_dmg and not package.manifest else None
             checksums = published_checksums((root / name).read_text(), single)
             if not package.manifest and set(checksums) != {name.removesuffix(".sha256")}:
                 raise ValueError(f"Unexpected published checksum names in {name}")
@@ -267,15 +312,15 @@ def prefetch(package):
         url, expected = stable["url"], stable["checksum"]
     if name != package.name or not isinstance(expected, str) or not DIGEST.fullmatch(expected):
         raise ValueError("Expected the registered package and a pinned SHA-256 checksum.")
-    sendbox.stable_version(version)
+    package.parse_version(version)
     names = [
         asset for asset in package.asset_names(version)
-        if url == f"https://github.com/{package.repository}/releases/download/v{version}/{asset}"
+        if url == package.release_url(version, asset)
     ]
     if len(names) != 1:
         raise ValueError("The package URL must identify one canonical registered release asset.")
-    release = sendbox.api(f"repos/{package.repository}/releases/tags/v{version}")
-    if release_version(release) != version or release_digests(package, release)[names[0]] != expected:
+    release = sendbox.api(f"repos/{package.repository}/releases/tags/{package.tag(version)}")
+    if release_version(package, release) != version or release_digests(package, release)[names[0]] != expected:
         raise ValueError("Package checksum and published GitHub asset digest disagree.")
     asset = next(asset for asset in release["assets"] if asset["name"] == names[0])
     size = asset.get("size")
@@ -296,7 +341,7 @@ def prefetch(package):
     with tempfile.TemporaryDirectory(prefix="tap-verified-download-", dir=root) as directory:
         temporary = Path(directory) / names[0]
         run(
-            "gh", "release", "download", f"v{version}", "--repo", package.repository,
+            "gh", "release", "download", package.tag(version), "--repo", package.repository,
             "--pattern", names[0], "--output", temporary,
         )
         with temporary.open("rb") as stream:
@@ -411,13 +456,13 @@ def publish_updates(updates, base):
             for package, release, _ in updates:
                 verify_release(package, release)
         versions = ", ".join(
-            f"{package.name} {release_version(release)}" for package, release, _ in updates
+            f"{package.name} {release_version(package, release)}" for package, release, _ in updates
         )
         url = run(
             "gh", "pr", "create", "--repo", REPOSITORY, "--head", branch,
             "--base", "main", "--title", f"Update packages: {versions}",
             "--body", (
-                f"Update published stable releases: {versions}.\n\n"
+                f"Update published releases from each package's registered channel: {versions}.\n\n"
                 "All supported release artifacts match GitHub asset digests and published "
                 "checksums. Full native package CI is explicitly dispatched for this revision; "
                 "the token-created PR run awaiting approval is redundant and needs no action. "
@@ -607,13 +652,13 @@ def merge_update(run_id, dry_run=False):
                 raise ValueError("Automatic release updates cannot introduce new packages.")
             continue
         original = path.read_text()
-        latest = sendbox.api(f"repos/{package.repository}/releases/latest")
+        latest = latest_release(package)
         releases.append((package, latest))
         candidate = definition_at(package.path, head) if package.path in paths else original
-        if current_version(candidate) != release_version(latest):
-            raise ValueError(f"{package.name} no longer matches its latest stable release; prepare a fresh batch.")
+        if current_version(package, candidate) != release_version(package, latest):
+            raise ValueError(f"{package.name} no longer matches its latest release; prepare a fresh batch.")
         if update_text(
-            package, candidate, release_version(latest), release_digests(package, latest),
+            package, candidate, release_version(package, latest), release_digests(package, latest),
         ) != candidate:
             raise ValueError(f"{package.path} no longer matches the latest published artifact digests.")
         if package.path in paths:
@@ -631,8 +676,8 @@ def merge_update(run_id, dry_run=False):
     if sendbox.api(f"{prefix}/commits/main")["sha"] != base:
         raise ValueError("Main changed during verification; no merge performed.")
     for package, release in releases:
-        latest = sendbox.api(f"repos/{package.repository}/releases/latest")
-        if release_version(latest) != release_version(release) or (
+        latest = latest_release(package)
+        if release_version(package, latest) != release_version(package, release) or (
             release_digests(package, latest) != release_digests(package, release)
         ):
             raise ValueError(f"{package.name} release changed during verification; no merge performed.")
@@ -689,19 +734,19 @@ def retire_updates():
         if any(not (ROOT / path).is_file() for path in candidates):
             continue
         proposed = {
-            path: sendbox.stable_version(current_version(candidate))
+            path: known[path].parse_version(current_version(known[path], candidate))
             for path, candidate in candidates.items()
         }
         pending = [
             path for path in candidates
-            if sendbox.stable_version(current_version((ROOT / path).read_text())) < proposed[path]
+            if known[path].parse_version(current_version(known[path], (ROOT / path).read_text())) < proposed[path]
         ]
         # The merger only accepts latest releases, so one outdated package blocks the whole batch.
         outdated = [
             path for path in pending
-            if proposed[path] < sendbox.stable_version(release_version(
-                sendbox.api(f"repos/{known[path].repository}/releases/latest"),
-            ))
+            if proposed[path] < known[path].parse_version(
+                release_version(known[path], latest_release(known[path])),
+            )
         ]
         if pending and not outdated:
             continue
@@ -710,9 +755,9 @@ def retire_updates():
         updates = []
         for path, candidate in candidates.items():
             package = known[path]
-            version = current_version(candidate)
+            version = current_version(package, candidate)
             original = definition_at(path, base)
-            release = sendbox.api(f"repos/{package.repository}/releases/tags/v{version}")
+            release = sendbox.api(f"repos/{package.repository}/releases/tags/{package.tag(version)}")
             expected = prepare_update(package, original, release)
             if expected is None or expected[1] != candidate:
                 print(f"::warning::Keeping PR #{number}: {path} has unexpected changes.")
@@ -720,7 +765,7 @@ def retire_updates():
             updates.append((package, release, candidate))
         else:
             if (
-                (legacy and branch != f"automation/{legacy.name}-v{current_version(candidates[legacy.path])}")
+                (legacy and branch != f"automation/{legacy.name}-v{current_version(legacy, candidates[legacy.path])}")
                 or (not legacy and update_branch(updates, base) != branch)
             ):
                 print(f"::warning::Keeping PR #{number}: its generated update identity does not match.")
@@ -780,7 +825,7 @@ def main(arguments=None):
         if not path.is_file():
             print(f"{package.path} is absent; skipping {package.name}.")
             continue
-        release = sendbox.api(f"repos/{package.repository}/releases/latest")
+        release = latest_release(package)
         original = path.read_text()
         update = prepare_update(package, original, release)
         if not update:
@@ -788,7 +833,7 @@ def main(arguments=None):
         version, updated = update
         if arguments.dry_run:
             verify_release(package, release)
-            print(f"Would update {package.path}: {current_version(original)} -> {version}; no writes.")
+            print(f"Would update {package.path}: {current_version(package, original)} -> {version}; no writes.")
         else:
             updates.append((package, release, updated))
     if updates:

@@ -53,7 +53,7 @@ jobs:
         if: env.DRY_RUN != 'true'
         run: gh auth setup-git
 
-      - name: Verify stable releases and prepare one CI-gated update batch
+      - name: Verify published releases and prepare one CI-gated update batch
         env:
           TAP_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: |
