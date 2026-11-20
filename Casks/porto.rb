@@ -21,6 +21,7 @@ cask "porto" do
     strategy :github_latest
   end
 
+  auto_updates true
   depends_on macos: :ventura
 
   app "Porto.app"
@@ -39,6 +40,10 @@ cask "porto" do
       Repeat after each upgrade.
       Installation does not start Porto, containers, VMs, or daemons. Guide:
         https://github.com/mbianchidev/homebrew-tap/blob/main/docs/macos-security.md
+
+      Leave Porto's "Automatically download new Porto versions" setting off
+      for Homebrew version tracking. To update with Homebrew:
+        brew upgrade --cask --greedy mbianchidev/tap/porto
     EOS
   end
 end

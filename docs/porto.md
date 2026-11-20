@@ -39,9 +39,15 @@ update. See [release automation](maintaining.md#release-updates).
 
 ```bash
 brew update
-brew upgrade --cask mbianchidev/tap/porto
+brew upgrade --cask --greedy mbianchidev/tap/porto
 brew uninstall --cask mbianchidev/tap/porto
 ```
+
+Porto also has a built-in updater that checks for new releases and installs a
+verified download after a restart, so the cask declares `auto_updates true` and
+`--greedy` is needed to upgrade it with Homebrew. Leave **Automatically download
+new Porto versions** off in Porto's Settings > Desktop behavior to keep the
+installed version and Homebrew's record aligned.
 
 Uninstall removes the app, not existing configuration, VM disks or container
 data. It does not stop existing runtime processes. Do not remove runtime data
