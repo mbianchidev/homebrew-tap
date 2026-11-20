@@ -32,11 +32,12 @@ Check each package guide for supported platforms and any separate runtime setup.
 | [Porto](docs/porto.md) | Desktop orchestrator for containers, apps and homelabs | `brew install --cask mbianchidev/tap/porto` |
 | [Denote](docs/denote.md) | Native desktop notebook | `brew install --cask mbianchidev/tap/denote` |
 | [Shipwatch](docs/shipwatch.md) | Menu bar app for GitHub releases, Actions and open work | `brew install --cask mbianchidev/tap/shipwatch` |
+| [Stainless](docs/stainless.md) | Preview Chromium-based browser without Google's built-in services | `brew install --cask mbianchidev/tap/stainless` |
 
-KillSwitch, Porto, Denote and Shipwatch are not notarized, so macOS blocks their
-first launch. Follow the [first launch steps](docs/macos-security.md): click
-**Open Anyway** in System Settings, or run the one-line `xattr` command each cask
-prints after installation. The casks themselves preserve quarantine.
+KillSwitch, Porto, Denote, Shipwatch and Stainless are not notarized, so macOS
+blocks their first launch. Follow the [first launch steps](docs/macos-security.md):
+click **Open Anyway** in System Settings, or run the one-line `xattr` command each
+cask prints after installation. The casks themselves preserve quarantine.
 
 ## Documentation
 

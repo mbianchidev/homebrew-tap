@@ -16,6 +16,7 @@ guide. Installing a package does not start its application or runtime.
 | [Porto](porto.md) | Desktop orchestrator for containers, apps and homelabs | Intel/Apple silicon Macs, macOS 13+. |
 | [Denote](denote.md) | Native desktop notebook | Intel/Apple silicon Macs. See the package guide for macOS requirements. |
 | [Shipwatch](shipwatch.md) | Menu bar app for GitHub releases, Actions status, issues and pull requests | Intel/Apple silicon Macs, macOS 14+. |
+| [Stainless](stainless.md) | Preview Chromium-based browser without Google's built-in services | Apple silicon Macs, macOS 13+ deployment target. See the package guide for tested versions. |
 
 Each guide covers installation, first use, relevant configuration, upgrades,
 removal and upstream documentation. Package versions and checksums are defined

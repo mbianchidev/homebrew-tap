@@ -7,7 +7,8 @@
 | Path | Purpose |
 | --- | --- |
 | [`Formula/`](../Formula) | Sendbox and sql-not-so-lite package definitions |
-| [`Casks/`](../Casks) | KillSwitch, Porto, Denote and Shipwatch desktop apps |
+| [`Casks/`](../Casks) | KillSwitch, Porto, Denote, Shipwatch and Stainless desktop apps |
+| [`audit_exceptions/`](../audit_exceptions) | Homebrew audit exceptions, such as allowed GitHub prereleases |
 | [`scripts/ci/`](../scripts/ci) | Package lifecycle checks and verified release updates |
 | [`tests/`](../tests) | Mock-data regression tests |
 | [`AGENTS.md`](../AGENTS.md) | Formula and cask conventions for agents and contributors |
@@ -148,6 +149,14 @@ online audit also excepts `token_conflicts`: the explicitly qualified cask
 shares a token with an unrelated core VPN formula. Normal token syntax and all
 other audit checks remain enabled.
 
+Stainless publishes only GitHub prereleases, which the strict online audit
+rejects by default. [`github_prerelease_allowlist.json`](../audit_exceptions/github_prerelease_allowlist.json)
+lists it as `all`: its prereleases pass, and a Stainless version published as a
+regular release fails the audit until the cask moves to a stable channel. Every
+other audit check stays enabled. Its livecheck reads GitHub releases with a block
+that accepts only published `stainless-preview-v` prereleases, because
+`:github_latest` skips prereleases.
+
 Draft pull requests run package CI. Obsolete runs are canceled, matrices fail
 fast, and package downloads are cached by OS/architecture. Validation and
 lifecycle jobs reuse Homebrew's locked Ruby dependencies from the same
@@ -167,7 +176,7 @@ full network isolation.
 ### Scheduled updates for all packages
 
 The **Package updates** workflow checks Sendbox, sql-not-so-lite, KillSwitch,
-Porto, Denote and Shipwatch
+Porto, Denote, Shipwatch and Stainless
 hourly at **17 minutes past the hour UTC**. It can also run manually from the
 Actions tab on `main`; manual runs default to a dry run. Clear the dry-run option
 to publish updates.
@@ -179,15 +188,28 @@ For each newer stable `vX.Y.Z` release, the updater verifies every supported
 platform artifact against its GitHub SHA-256 digest and the adjacent published
 checksum or checksum manifest. Sendbox archives also require the existing
 tag-bound release-workflow attestations. Missing platform artifacts, ambiguous
-assets, mismatched hashes and prereleases fail explicitly rather than producing
-partial package updates. No application, service, VM or agent is launched.
+assets, mismatched hashes and prereleases of stable packages fail explicitly
+rather than producing partial package updates. No application, service, VM or
+agent is launched.
 KillSwitch and Shipwatch publish one universal DMG with an adjacent
 bare-digest `.sha256` file (`single_dmg` in the package registry).
+Stainless publishes one Apple silicon DMG listed in `SHA256SUMS` (`single_dmg`
+with a manifest).
 Porto uses its `SHA256SUMS` manifest; Denote uses both macOS architecture
 manifests. Identical shared entries across separate manifests are accepted;
 duplicate entries within a manifest or conflicting shared digests fail.
 Both architecture-specific DMGs must be present and verified before a cask
 update is published.
+
+Packages registered with `preview=True` follow a prerelease-only channel
+instead of stable `vX.Y.Z` releases. Stainless publishes only
+`stainless-preview-vX.Y.Z-preview.N` GitHub prereleases, and GitHub's latest
+release excludes prereleases, so the updater takes the highest published
+preview among the repository's 100 most recent releases. Drafts are ignored;
+a release under that tag prefix that is not a prerelease, or that uses another
+version format, fails explicitly. The same digest and checksum verification,
+batching, CI and merge rules apply. When Stainless publishes stable releases,
+change its registry entry, livecheck and audit exception in one PR.
 
 The updater changes only versions, versioned release URLs where necessary and
 checksums. All pending releases are verified before any definition is written and
@@ -280,6 +302,9 @@ Porto and Denote already publish versioned Intel/ARM DMGs and checksum manifests
 from their release workflows, so the central updater needs no new tap-write
 credentials or source-driven tap branches. Their separate macOS packaging PRs
 correct app sealing while preserving release checksums and provenance.
+Stainless publishes its versioned preview DMG and `SHA256SUMS` from its own
+release tooling without writing to this tap, so it needs no tap credential
+either.
 Ad-hoc signatures are not Developer ID signing or notarization; casks retain
 quarantine and never re-sign downloaded apps or start runtimes.
 
@@ -309,6 +334,10 @@ DMG, its GitHub digest and the published checksum before changing the cask's
 version and SHA-256. Keep `auto_updates true` and the documented greedy-upgrade
 behavior on the KillSwitch, Porto, Denote and Shipwatch casks while their
 built-in updaters exist.
+
+Stainless's built-in updater is opt-in, needs a user-provided GitHub token 
+and is still being verified upstream,so its cask omits `auto_updates` 
+and a plain `brew upgrade` updates it.
 
 Upstream projects retain their own release tooling and credentials. The scheduled
 tap updater reads public releases and does not reuse their publishing credentials.
