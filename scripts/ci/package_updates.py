@@ -100,7 +100,7 @@ PACKAGES = {
         "SHA256SUMS",
     ),
     "denote": Package(
-        "denote", "Casks/denote.rb", "mbianchidev/denote",
+        "denote", "Casks/denote.rb", "denote-io/denote",
         tuple(f"Denote_{{version}}_{arch}.dmg" for arch in ("aarch64", "x64")),
         ("denote-macos-aarch64-SHA256SUMS.txt", "denote-macos-x64-SHA256SUMS.txt"),
     ),

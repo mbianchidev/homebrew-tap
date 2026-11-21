@@ -1,6 +1,6 @@
 # Denote
 
-[Package guides](README.md) | [Upstream](https://github.com/mbianchidev/denote)
+[Package guides](README.md) | [Upstream](https://github.com/denote-io/denote)
 
 ## Install
 
@@ -21,7 +21,7 @@ does not download these optional tools or imply that they work on older Macs.
 ## First use and macOS security
 
 Launch Denote yourself from Applications and follow the
-[upstream guide](https://github.com/mbianchidev/denote#readme).
+[upstream guide](https://github.com/denote-io/denote#readme).
 Existing notebooks and preferences remain outside the app bundle.
 
 Current bundles are not Developer ID signed or notarized, and the 0.14.0 app
