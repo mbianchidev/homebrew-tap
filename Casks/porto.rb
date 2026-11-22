@@ -1,13 +1,13 @@
 cask "porto" do
-  version "1.11.3"
+  version "1.11.4"
 
   on_arm do
-    sha256 "024f0dc84cc0130d5e66bc95d992667760fb82e003a457e087001c4f2ca7093b"
+    sha256 "a6367454221ffb3f866c9c0bf06ed05fbc72ba7288de9b054f4114d3a50764bb"
 
     url "https://github.com/mbianchidev/porto/releases/download/v#{version}/porto-desktop_#{version}_darwin_arm64.dmg"
   end
   on_intel do
-    sha256 "1745d6a0a0434f78778584be8ce7dbfed3a69184fa88951bd09ec39bccc75374"
+    sha256 "be9971b23ccb4159c5573b785339605f22754fa2221eb5034895311fb5507441"
 
     url "https://github.com/mbianchidev/porto/releases/download/v#{version}/porto-desktop_#{version}_darwin_amd64.dmg"
   end
