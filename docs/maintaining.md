@@ -198,7 +198,8 @@ rather than producing partial package updates. No application, service, VM or
 agent is launched.
 KillSwitch and Shipwatch publish one universal DMG with an adjacent
 bare-digest `.sha256` file (`single_dmg` in the package registry).
-Stainless publishes one Apple silicon DMG listed in `SHA256SUMS` (`single_dmg`
+Stainless releases come from [`stainless-browser/stainless`](https://github.com/stainless-browser/stainless)
+and publish one Apple silicon DMG listed in `SHA256SUMS` (`single_dmg`
 with a manifest).
 Porto releases come from [`porto-containers/porto`](https://github.com/porto-containers/porto)
 and use its `SHA256SUMS` manifest; Denote uses both macOS architecture

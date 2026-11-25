@@ -109,7 +109,7 @@ PACKAGES = {
         single_dmg=True,
     ),
     "stainless": Package(
-        "stainless", "Casks/stainless.rb", "mbianchidev/stainless",
+        "stainless", "Casks/stainless.rb", "stainless-browser/stainless",
         ("Stainless-{version}-macos-arm64.dmg",), "SHA256SUMS",
         single_dmg=True, tag_prefix="stainless-preview-v", preview=True,
     ),
