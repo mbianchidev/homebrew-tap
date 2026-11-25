@@ -4,17 +4,17 @@ cask "porto" do
   on_arm do
     sha256 "4288b03ddf587c76efe56bfbc607b5c1da2cf8016a1ce7418938e56d5abf3bf4"
 
-    url "https://github.com/mbianchidev/porto/releases/download/v#{version}/porto-desktop_#{version}_darwin_arm64.dmg"
+    url "https://github.com/porto-containers/porto/releases/download/v#{version}/porto-desktop_#{version}_darwin_arm64.dmg"
   end
   on_intel do
     sha256 "eeef88f61b97f9701ec8cdb25a9028ac8746cf8c74525310ba394548701ac9ce"
 
-    url "https://github.com/mbianchidev/porto/releases/download/v#{version}/porto-desktop_#{version}_darwin_amd64.dmg"
+    url "https://github.com/porto-containers/porto/releases/download/v#{version}/porto-desktop_#{version}_darwin_amd64.dmg"
   end
 
   name "Porto"
   desc "Desktop orchestrator for local containers, apps, and homelabs"
-  homepage "https://github.com/mbianchidev/porto"
+  homepage "https://github.com/porto-containers/porto"
 
   livecheck do
     url :url

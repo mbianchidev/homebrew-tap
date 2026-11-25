@@ -95,7 +95,7 @@ PACKAGES = {
         single_dmg=True,
     ),
     "porto": Package(
-        "porto", "Casks/porto.rb", "mbianchidev/porto",
+        "porto", "Casks/porto.rb", "porto-containers/porto",
         tuple(f"porto-desktop_{{version}}_darwin_{arch}.dmg" for arch in ("arm64", "amd64")),
         "SHA256SUMS",
     ),
@@ -109,7 +109,7 @@ PACKAGES = {
         single_dmg=True,
     ),
     "stainless": Package(
-        "stainless", "Casks/stainless.rb", "mbianchidev/stainless",
+        "stainless", "Casks/stainless.rb", "stainless-browser/stainless",
         ("Stainless-{version}-macos-arm64.dmg",), "SHA256SUMS",
         single_dmg=True, tag_prefix="stainless-preview-v", preview=True,
     ),

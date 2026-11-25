@@ -1,9 +1,9 @@
 class Sendbox < Formula
   desc "Run coding agents in policy-controlled Linux virtual machines"
-  homepage "https://github.com/mbianchidev/sendbox"
+  homepage "https://github.com/sendbox-dev/sendbox"
   # The updater needs one version before the interpolated, metadata-safe default URL.
   version "0.2.7"
-  url "https://github.com/mbianchidev/sendbox/releases/download/v#{version}/sendbox-#{version}-macos-arm64.tar.gz"
+  url "https://github.com/sendbox-dev/sendbox/releases/download/v#{version}/sendbox-#{version}-macos-arm64.tar.gz"
   sha256 "9e49068b854e72e6ff1569639320be5f9df8507b1a002f3b77516855389e1972"
   license "Apache-2.0"
 
@@ -21,12 +21,12 @@ class Sendbox < Formula
     depends_on "zlib"
 
     on_intel do
-      url "https://github.com/mbianchidev/sendbox/releases/download/v#{version}/sendbox-#{version}-linux-x86_64.tar.gz"
+      url "https://github.com/sendbox-dev/sendbox/releases/download/v#{version}/sendbox-#{version}-linux-x86_64.tar.gz"
       sha256 "277f20692700e091944c582b95e5e67cb258d86a65b93f24bf6435578e5561b5"
     end
 
     on_arm do
-      url "https://github.com/mbianchidev/sendbox/releases/download/v#{version}/sendbox-#{version}-linux-aarch64.tar.gz"
+      url "https://github.com/sendbox-dev/sendbox/releases/download/v#{version}/sendbox-#{version}-linux-aarch64.tar.gz"
       sha256 "8b8d4e08663b0b63208fcc6eae7aa4aa305e50fc29fcf23db312e22842da866f"
     end
   end
@@ -63,7 +63,7 @@ class Sendbox < Formula
       Homebrew paths are user-owned and must not be used directly as trusted
       guest bundles. Before launching a VM, follow the verified, versioned,
       root-owned staging instructions at:
-        https://github.com/mbianchidev/sendbox/blob/main/docs/installation.md#homebrew
+        https://github.com/sendbox-dev/sendbox/blob/main/docs/installation.md#homebrew
 
       Run sendbox as your normal user, never with sudo. No setup helper,
       runtime service, or application is started automatically.

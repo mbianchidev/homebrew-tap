@@ -184,18 +184,25 @@ Scheduled and merge workflows become active only after the implementation PR is
 merged into the default branch. GitHub schedules can be delayed; publication is
 not guaranteed to finish within an hour.
 
+Sendbox releases come from [`sendbox-dev/sendbox`](https://github.com/sendbox-dev/sendbox).
 For each newer stable `vX.Y.Z` release, the updater verifies every supported
 platform artifact against its GitHub SHA-256 digest and the adjacent published
 checksum or checksum manifest. Sendbox archives also require the existing
-tag-bound release-workflow attestations. Missing platform artifacts, ambiguous
+tag-bound release-workflow attestations. Releases signed before the transfer
+keep the `mbianchidev/sendbox` signer identity and owner-scoped attestation
+storage, so verification tries the current identity, then that original one,
+and accepts either only when the certificate's source repository ID matches the
+pinned ID of `sendbox-dev/sendbox`. Missing platform artifacts, ambiguous
 assets, mismatched hashes and prereleases of stable packages fail explicitly
 rather than producing partial package updates. No application, service, VM or
 agent is launched.
 KillSwitch and Shipwatch publish one universal DMG with an adjacent
 bare-digest `.sha256` file (`single_dmg` in the package registry).
-Stainless publishes one Apple silicon DMG listed in `SHA256SUMS` (`single_dmg`
+Stainless releases come from [`stainless-browser/stainless`](https://github.com/stainless-browser/stainless)
+and publish one Apple silicon DMG listed in `SHA256SUMS` (`single_dmg`
 with a manifest).
-Porto uses its `SHA256SUMS` manifest; Denote uses both macOS architecture
+Porto releases come from [`porto-containers/porto`](https://github.com/porto-containers/porto)
+and use its `SHA256SUMS` manifest; Denote uses both macOS architecture
 manifests. Identical shared entries across separate manifests are accepted;
 duplicate entries within a manifest or conflicting shared digests fail.
 Both architecture-specific DMGs must be present and verified before a cask

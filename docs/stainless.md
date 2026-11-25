@@ -1,8 +1,8 @@
 # Stainless
 
-[Package guides](README.md) | [Upstream](https://github.com/mbianchidev/stainless)
+[Package guides](README.md) | [Upstream](https://github.com/stainless-browser/stainless)
 
-[Stainless](https://github.com/mbianchidev/stainless) is a Chromium-based
+[Stainless](https://github.com/stainless-browser/stainless) is a Chromium-based
 browser with Google's built-in services removed, for developers and
 privacy-conscious people. Upstream publishes only preview prereleases. The cask
 installs the newest checksummed `Stainless-<version>-macos-arm64.dmg` on Apple
@@ -26,8 +26,8 @@ Stainless is a preview. **Google Safe Browsing, phishing and download
 reputation, and password-leak checks are removed with no replacement.**
 Translation, cloud push and other Google-backed features are unavailable.
 Read the upstream
-[feature availability notes](https://github.com/mbianchidev/stainless/blob/main/docs/degoogling.md)
-and [installation guide](https://github.com/mbianchidev/stainless/blob/main/docs/install-macos.md)
+[feature availability notes](https://github.com/stainless-browser/stainless/blob/main/docs/degoogling.md)
+and [installation guide](https://github.com/stainless-browser/stainless/blob/main/docs/install-macos.md)
 before browsing with it.
 
 ## macOS security
@@ -70,7 +70,7 @@ brew uninstall --cask mbianchidev/tap/stainless
 
 Uninstall removes the app and keeps your profiles, caches, updater backups and
 Keychain items. To also move the Stainless data named in the upstream
-[removal guide](https://github.com/mbianchidev/stainless/blob/main/docs/install-macos.md#remove-stainless)
+[removal guide](https://github.com/stainless-browser/stainless/blob/main/docs/install-macos.md#remove-stainless)
 to the Trash, use `--zap`:
 
 ```bash

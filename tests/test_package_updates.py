@@ -84,6 +84,41 @@ def mock_release(package, version="9.8.7"):
 
 
 class ReleaseUpdateTests(unittest.TestCase):
+    def test_sendbox_updates_from_transferred_repository(self):
+        package = UPDATES.PACKAGES["sendbox"]
+        release, _ = mock_release(package)
+        for asset in release["assets"]:
+            asset["browser_download_url"] = (
+                "https://github.com/sendbox-dev/sendbox/releases/download/"
+                f'{release["tag_name"]}/{asset["name"]}'
+            )
+        with mock.patch.object(UPDATES.sendbox, "api", return_value=release) as api:
+            latest = UPDATES.latest_release(package)
+        api.assert_called_once_with("repos/sendbox-dev/sendbox/releases/latest")
+        version, updated = UPDATES.prepare_update(package, mock_definition(package), latest)
+        self.assertEqual(version, "9.8.7")
+        self.assertEqual(updated.count("https://github.com/sendbox-dev/sendbox/"), 3)
+        self.assertEqual(UPDATES.sendbox.formula_fields(updated)[1], UPDATES.sendbox.release_digests(latest))
+
+    def test_porto_updates_from_transferred_repository(self):
+        package = UPDATES.PACKAGES["porto"]
+        release, _ = mock_release(package)
+        for asset in release["assets"]:
+            asset["browser_download_url"] = (
+                "https://github.com/porto-containers/porto/releases/download/"
+                f'{release["tag_name"]}/{asset["name"]}'
+            )
+        with mock.patch.object(UPDATES.sendbox, "api", return_value=release) as api:
+            latest = UPDATES.latest_release(package)
+        api.assert_called_once_with("repos/porto-containers/porto/releases/latest")
+        original = mock_definition(package)
+        version, updated = UPDATES.prepare_update(package, original, latest)
+        self.assertEqual(version, "9.8.7")
+        self.assertEqual(updated.count("https://github.com/porto-containers/porto/"), 2)
+        for name in package.asset_names(version):
+            digest = UPDATES.definition_pattern(package, version, name).search(updated).group("digest")
+            self.assertEqual(digest, UPDATES.release_digests(package, latest)[name])
+
     def test_updates_only_release_fields_for_every_package(self):
         for package in UPDATES.PACKAGES.values():
             with self.subTest(package=package.name):
