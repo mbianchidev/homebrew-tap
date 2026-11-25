@@ -184,6 +184,7 @@ Scheduled and merge workflows become active only after the implementation PR is
 merged into the default branch. GitHub schedules can be delayed; publication is
 not guaranteed to finish within an hour.
 
+Sendbox releases come from [`sendbox-dev/sendbox`](https://github.com/sendbox-dev/sendbox).
 For each newer stable `vX.Y.Z` release, the updater verifies every supported
 platform artifact against its GitHub SHA-256 digest and the adjacent published
 checksum or checksum manifest. Sendbox archives also require the existing

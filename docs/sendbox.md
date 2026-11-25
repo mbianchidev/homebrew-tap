@@ -2,7 +2,7 @@
 
 [Documentation](README.md)
 
-[Sendbox](https://github.com/mbianchidev/sendbox) runs coding agents in
+[Sendbox](https://github.com/sendbox-dev/sendbox) runs coding agents in
 policy-controlled Linux VMs. The formula installs published host binaries,
 configuration examples, a setup helper and the matching signed guest payload.
 No Rust compiler or frontend build is needed.
@@ -30,7 +30,7 @@ Kata/containerd/nerdctl runtime.
 
 The complete release payload is under `$(brew --prefix sendbox)/libexec`.
 **Do not pass this user-owned Homebrew guest directory directly to `sendbox run`.**
-Follow the upstream [Homebrew installation guide](https://github.com/mbianchidev/sendbox/blob/main/docs/installation.md#homebrew)
+Follow the upstream [Homebrew installation guide](https://github.com/sendbox-dev/sendbox/blob/main/docs/installation.md#homebrew)
 to verify and copy the matching guest bundle and trust root to
 `/opt/sendbox/<version>/guest/<architecture>`. That runtime path needs root-owned,
 non-writable ancestors, `0555` guest executables and `0444` metadata/trust roots.
@@ -40,7 +40,7 @@ Run Sendbox as your normal user, not with `sudo`. Do not run the bundled
 `setup.sh` merely to install or smoke-test the CLI: it performs runtime preflight
 and can offer additional installation steps.
 
-See the upstream [runtime quickstart](https://github.com/mbianchidev/sendbox#quick-start)
+See the upstream [runtime quickstart](https://github.com/sendbox-dev/sendbox#quick-start)
 for configuration and running an agent after the runtime is ready.
 
 ## Upgrades and removal

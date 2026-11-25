@@ -13,7 +13,7 @@ import tarfile
 import tempfile
 
 
-REPOSITORY = "mbianchidev/sendbox"
+REPOSITORY = "sendbox-dev/sendbox"
 TAP = "mbianchidev/tap/sendbox"
 PLATFORMS = ("macos-arm64", "linux-x86_64", "linux-aarch64")
 VERSION_LINE = re.compile(r'^  version "([^"]+)"$', re.MULTILINE)
@@ -28,7 +28,7 @@ def stable_version(version):
 
 def checksum_pattern(target):
     url = (
-        "https://github.com/mbianchidev/sendbox/releases/download/"
+        f"https://github.com/{REPOSITORY}/releases/download/"
         f"v#{{version}}/sendbox-#{{version}}-{target}.tar.gz"
     )
     return re.compile(

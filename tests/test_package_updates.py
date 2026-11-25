@@ -84,6 +84,22 @@ def mock_release(package, version="9.8.7"):
 
 
 class ReleaseUpdateTests(unittest.TestCase):
+    def test_sendbox_updates_from_transferred_repository(self):
+        package = UPDATES.PACKAGES["sendbox"]
+        release, _ = mock_release(package)
+        for asset in release["assets"]:
+            asset["browser_download_url"] = (
+                "https://github.com/sendbox-dev/sendbox/releases/download/"
+                f'{release["tag_name"]}/{asset["name"]}'
+            )
+        with mock.patch.object(UPDATES.sendbox, "api", return_value=release) as api:
+            latest = UPDATES.latest_release(package)
+        api.assert_called_once_with("repos/sendbox-dev/sendbox/releases/latest")
+        version, updated = UPDATES.prepare_update(package, mock_definition(package), latest)
+        self.assertEqual(version, "9.8.7")
+        self.assertEqual(updated.count("https://github.com/sendbox-dev/sendbox/"), 3)
+        self.assertEqual(UPDATES.sendbox.formula_fields(updated)[1], UPDATES.sendbox.release_digests(latest))
+
     def test_porto_updates_from_transferred_repository(self):
         package = UPDATES.PACKAGES["porto"]
         release, _ = mock_release(package)

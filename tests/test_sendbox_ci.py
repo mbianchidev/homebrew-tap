@@ -4,6 +4,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +30,16 @@ class FormulaUpdateTests(unittest.TestCase):
         self.assertEqual(
             CI.validate_update(self.formula, self.updated, self.branch, ["Formula/sendbox.rb"]),
             self.next_version,
+        )
+
+    def test_attestation_remains_bound_to_transferred_release_workflow(self):
+        with mock.patch.object(CI, "run") as run:
+            CI.verify_attestation(Path("mock-release.tar.gz"), "9.8.7")
+        run.assert_called_once_with(
+            "gh", "attestation", "verify", Path("mock-release.tar.gz"),
+            "--repo", "sendbox-dev/sendbox",
+            "--signer-workflow", "sendbox-dev/sendbox/.github/workflows/release.yaml",
+            "--source-ref", "refs/tags/v9.8.7", "--deny-self-hosted-runners",
         )
 
     def test_rejects_prereleases_and_noncanonical_versions(self):
