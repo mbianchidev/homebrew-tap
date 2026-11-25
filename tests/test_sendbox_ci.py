@@ -1,6 +1,8 @@
 import importlib.util
 import io
+import json
 from pathlib import Path
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -32,15 +34,32 @@ class FormulaUpdateTests(unittest.TestCase):
             self.next_version,
         )
 
-    def test_attestation_remains_bound_to_transferred_release_workflow(self):
-        with mock.patch.object(CI, "run") as run:
-            CI.verify_attestation(Path("mock-release.tar.gz"), "9.8.7")
-        run.assert_called_once_with(
-            "gh", "attestation", "verify", Path("mock-release.tar.gz"),
-            "--repo", "sendbox-dev/sendbox",
-            "--signer-workflow", "sendbox-dev/sendbox/.github/workflows/release.yaml",
-            "--source-ref", "refs/tags/v9.8.7", "--deny-self-hosted-runners",
-        )
+    @staticmethod
+    def attestation(repository_id):
+        certificate = {"sourceRepositoryIdentifier": repository_id}
+        return json.dumps([{"verificationResult": {"signature": {"certificate": certificate}}}])
+
+    def test_pre_transfer_attestation_is_accepted_for_the_same_repository(self):
+        missing = subprocess.CalledProcessError(1, "gh")
+        with mock.patch.object(CI, "run", side_effect=[missing, self.attestation("1196009341")]) as run:
+            signer = CI.verify_attestation(Path("mock-release.tar.gz"), "9.8.7")
+        self.assertEqual(signer, "mbianchidev/sendbox")
+        self.assertIn("sendbox-dev/sendbox/.github/workflows/release.yaml", run.call_args_list[0].args)
+        self.assertIn("mbianchidev/sendbox/.github/workflows/release.yaml", run.call_args_list[1].args)
+        for call in run.call_args_list:
+            self.assertIn("refs/tags/v9.8.7", call.args)
+            self.assertIn("--deny-self-hosted-runners", call.args)
+
+    def test_attestation_from_another_repository_is_rejected(self):
+        with mock.patch.object(CI, "run", return_value=self.attestation("42")):
+            with self.assertRaisesRegex(ValueError, "not bound"):
+                CI.verify_attestation(Path("mock-release.tar.gz"), "9.8.7")
+
+    def test_missing_attestation_is_rejected(self):
+        missing = subprocess.CalledProcessError(1, "gh")
+        with mock.patch.object(CI, "run", side_effect=missing):
+            with self.assertRaisesRegex(ValueError, "No accepted"):
+                CI.verify_attestation(Path("mock-release.tar.gz"), "9.8.7")
 
     def test_rejects_prereleases_and_noncanonical_versions(self):
         for version in ("1.2.3-rc.1", "01.2.3", "1.2", "v1.2.3", "1.2.3+build"):

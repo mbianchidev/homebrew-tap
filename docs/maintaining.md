@@ -188,7 +188,11 @@ Sendbox releases come from [`sendbox-dev/sendbox`](https://github.com/sendbox-de
 For each newer stable `vX.Y.Z` release, the updater verifies every supported
 platform artifact against its GitHub SHA-256 digest and the adjacent published
 checksum or checksum manifest. Sendbox archives also require the existing
-tag-bound release-workflow attestations. Missing platform artifacts, ambiguous
+tag-bound release-workflow attestations. Releases signed before the transfer
+keep the `mbianchidev/sendbox` signer identity and owner-scoped attestation
+storage, so verification tries the current identity, then that original one,
+and accepts either only when the certificate's source repository ID matches the
+pinned ID of `sendbox-dev/sendbox`. Missing platform artifacts, ambiguous
 assets, mismatched hashes and prereleases of stable packages fail explicitly
 rather than producing partial package updates. No application, service, VM or
 agent is launched.

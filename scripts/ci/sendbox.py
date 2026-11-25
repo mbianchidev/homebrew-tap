@@ -14,6 +14,11 @@ import tempfile
 
 
 REPOSITORY = "sendbox-dev/sendbox"
+# GitHub's immutable ID for the repository; it survived the transfer from mbianchidev.
+REPOSITORY_ID = "1196009341"
+# Releases signed before the transfer carry the original owner's signer identity
+# and their attestations stay stored under that owner.
+SIGNER_REPOSITORIES = (REPOSITORY, "mbianchidev/sendbox")
 TAP = "mbianchidev/tap/sendbox"
 PLATFORMS = ("macos-arm64", "linux-x86_64", "linux-aarch64")
 VERSION_LINE = re.compile(r'^  version "([^"]+)"$', re.MULTILINE)
@@ -148,11 +153,30 @@ def verify_archive(version, target, expected, temporary):
 
 
 def verify_attestation(archive, version):
-    run(
-        "gh", "attestation", "verify", archive, "--repo", REPOSITORY,
-        "--signer-workflow", f"{REPOSITORY}/.github/workflows/release.yaml",
-        "--source-ref", f"refs/tags/v{version}", "--deny-self-hosted-runners",
-    )
+    failures = []
+    for signer in SIGNER_REPOSITORIES:
+        try:
+            output = run(
+                "gh", "attestation", "verify", archive,
+                "--owner", signer.split("/")[0],
+                "--signer-workflow", f"{signer}/.github/workflows/release.yaml",
+                "--source-ref", f"refs/tags/v{version}", "--deny-self-hosted-runners",
+                "--format", "json", capture=True,
+            )
+        except subprocess.CalledProcessError as error:
+            failures.append(f"{signer}: exit {error.returncode}")
+            continue
+        results = json.loads(output)
+        identifiers = {
+            result["verificationResult"]["signature"]["certificate"]["sourceRepositoryIdentifier"]
+            for result in results
+        }
+        if not results or identifiers != {REPOSITORY_ID}:
+            raise ValueError(
+                f"Attestation by {signer} is not bound to repository ID {REPOSITORY_ID}: {identifiers}"
+            )
+        return signer
+    raise ValueError("No accepted Sendbox release attestation: " + "; ".join(failures))
 
 
 def verify_guest_bytes(archive, libexec):
