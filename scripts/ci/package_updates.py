@@ -95,7 +95,7 @@ PACKAGES = {
         single_dmg=True,
     ),
     "porto": Package(
-        "porto", "Casks/porto.rb", "mbianchidev/porto",
+        "porto", "Casks/porto.rb", "porto-containers/porto",
         tuple(f"porto-desktop_{{version}}_darwin_{arch}.dmg" for arch in ("arm64", "amd64")),
         "SHA256SUMS",
     ),

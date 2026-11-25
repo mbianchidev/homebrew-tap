@@ -195,7 +195,8 @@ KillSwitch and Shipwatch publish one universal DMG with an adjacent
 bare-digest `.sha256` file (`single_dmg` in the package registry).
 Stainless publishes one Apple silicon DMG listed in `SHA256SUMS` (`single_dmg`
 with a manifest).
-Porto uses its `SHA256SUMS` manifest; Denote uses both macOS architecture
+Porto releases come from [`porto-containers/porto`](https://github.com/porto-containers/porto)
+and use its `SHA256SUMS` manifest; Denote uses both macOS architecture
 manifests. Identical shared entries across separate manifests are accepted;
 duplicate entries within a manifest or conflicting shared digests fail.
 Both architecture-specific DMGs must be present and verified before a cask

@@ -1,6 +1,6 @@
 # Porto
 
-[Package guides](README.md) | [Upstream](https://github.com/mbianchidev/porto)
+[Package guides](README.md) | [Upstream](https://github.com/porto-containers/porto)
 
 ## Install
 
@@ -19,7 +19,7 @@ this desktop cask.
 ## First use and macOS security
 
 Launch Porto yourself from Applications and follow the
-[upstream setup guidance](https://github.com/mbianchidev/porto#readme).
+[upstream setup guidance](https://github.com/porto-containers/porto#readme).
 Runtime initialization and VM/container startup remain explicit user actions.
 
 Current release bundles are not Developer ID signed or notarized, and the
