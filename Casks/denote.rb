@@ -14,7 +14,7 @@ cask "denote" do
 
   name "Denote"
   desc "Native desktop notebook with Markdown and extensible tools"
-  homepage "https://github.com/denote-io/denote"
+  homepage "https://denote.synctune.it/"
 
   livecheck do
     url :url
