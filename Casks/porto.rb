@@ -14,7 +14,7 @@ cask "porto" do
 
   name "Porto"
   desc "Desktop orchestrator for local containers, apps, and homelabs"
-  homepage "https://github.com/porto-containers/porto"
+  homepage "https://porto.synctune.it/"
 
   livecheck do
     url :url

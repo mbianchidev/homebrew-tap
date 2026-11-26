@@ -5,7 +5,7 @@ cask "stainless" do
   url "https://github.com/stainless-browser/stainless/releases/download/stainless-preview-v#{version}/Stainless-#{version}-macos-arm64.dmg"
   name "Stainless"
   desc "Privacy-focused Chromium browser with Google's built-in services removed"
-  homepage "https://github.com/stainless-browser/stainless"
+  homepage "https://stainless.synctune.it/"
 
   # Stainless publishes only GitHub prereleases, which `:github_latest` skips.
   livecheck do

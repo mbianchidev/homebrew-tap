@@ -62,7 +62,8 @@ Every package, formula or cask, needs all of the following in one PR:
    conflicts and document any shared name (KillSwitch shares one with a core
    formula and is only installed by its qualified name).
 2. **Artifacts.** Immutable versioned GitHub release assets:
-   `https://github.com/mbianchidev/<repo>/releases/download/vX.Y.Z/<asset>`.
+   `https://github.com/<owner>/<repo>/releases/download/vX.Y.Z/<asset>`, naming
+   the repository's current owner.
    Never `releases/latest/download`, branch archives or CI artifacts. Each
    `sha256` must match the asset's GitHub digest and the published checksum
    file or manifest.
@@ -72,6 +73,9 @@ Every package, formula or cask, needs all of the following in one PR:
    than `vX.Y.Z` and `preview=True` for prerelease-only projects. Add mock-data
    cases in `tests/test_package_updates.py`. The updater rewrites definitions
    with exact patterns, so keep the layouts below.
+   When an upstream repository moves, update `url`, `homepage`, its registry
+   `repository` and docs links in one PR. The updater rejects releases whose
+   download URLs name another owner, even though GitHub redirects old URLs.
 4. **Lifecycle coverage.** `scripts/ci/test-packages.rb` discovers packages and
    runs install, test and uninstall on ARM macOS and Linux x86_64/aarch64. Add
    a package-specific check under `scripts/ci/` only when the default is not

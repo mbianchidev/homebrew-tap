@@ -1,6 +1,6 @@
 class Sendbox < Formula
   desc "Run coding agents in policy-controlled Linux virtual machines"
-  homepage "https://github.com/sendbox-dev/sendbox"
+  homepage "https://sendbox.synctune.it/"
   # The updater needs one version before the interpolated, metadata-safe default URL.
   version "0.2.7"
   url "https://github.com/sendbox-dev/sendbox/releases/download/v#{version}/sendbox-#{version}-macos-arm64.tar.gz"
