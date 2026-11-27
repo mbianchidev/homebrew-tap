@@ -1,13 +1,13 @@
 cask "denote" do
-  version "1.1.0"
+  version "1.1.1"
 
   on_arm do
-    sha256 "70c3607e5d6f2edd251aa40b27a998f6b22811ddc215ae6d8fc02c00be88f83a"
+    sha256 "6a30104ba234b381d077ec790c0eb6ced19f68739b8ecd1ae34d37b2b1cb8e91"
 
     url "https://github.com/denote-io/denote/releases/download/v#{version}/Denote_#{version}_aarch64.dmg"
   end
   on_intel do
-    sha256 "8bd7963a8386949b69ad9e1c75912f064907b86ebf264375080b4c45f6029481"
+    sha256 "c7b99ee8598ebb700781c699ecac21406749fa0de5fdb329cc8ca88d0e042485"
 
     url "https://github.com/denote-io/denote/releases/download/v#{version}/Denote_#{version}_x64.dmg"
   end
